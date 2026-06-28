@@ -1,0 +1,56 @@
+name: CI / Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Unit tests (numerology)
+        working-directory: web
+        run: bun run test
+
+  deploy:
+    name: Deploy to VDS
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          NUXT_LLM_BASE_URL: ${{ secrets.NUXT_LLM_BASE_URL }}
+          NUXT_LLM_API_KEY: ${{ secrets.NUXT_LLM_API_KEY }}
+        with:
+          host: ${{ secrets.VDS_HOST }}
+          username: ${{ secrets.VDS_USER }}
+          password: ${{ secrets.VDS_PASSWORD }}
+          port: ${{ secrets.VDS_PORT || 22 }}
+          # Forward the LLM secret into the remote shell; docker compose reads it
+          # from the environment (no endpoint is committed to the repo).
+          envs: NUXT_LLM_BASE_URL,NUXT_LLM_API_KEY
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull --ff-only
+            export NUXT_LLM_BASE_URL NUXT_LLM_API_KEY
+            docker compose build
+            docker compose run --rm migrate
+            docker compose up -d
+            docker image prune -f

@@ -1,0 +1,76 @@
+# Full stack for the astro-numerology app.
+#
+# Local dev:  docker compose up -d postgres      (run web via `bun run dev`)
+# Deploy:     docker compose build
+#             docker compose run --rm migrate     (apply DB migrations)
+#             docker compose up -d
+#
+# External dependencies NOT in this compose: the Qwen LLM (separate llama.cpp
+# server) and geocoding (public Nominatim). Configure via the env vars below.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: astro-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: astro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-astro}
+      POSTGRES_DB: astro
+    # Bound to localhost only (not exposed publicly). 5433 avoids a native
+    # Postgres that may already hold 5432 on the host.
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - astro-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astro -d astro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  astro-service:
+    build: ./astro-service
+    restart: unless-stopped
+    environment:
+      NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org}
+      NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-astro-numerology-app/1.0}
+      GEOCODING_LANGUAGE: ${GEOCODING_LANGUAGE:-ru}
+    expose:
+      - "8000"
+
+  # One-shot migration runner (uses the bun `base` stage). Not started by
+  # `up`; invoke with `docker compose run --rm migrate`.
+  migrate:
+    build:
+      context: ./web
+      target: base
+    command: bun run db:migrate
+    environment:
+      NUXT_DATABASE_URL: postgres://astro:${POSTGRES_PASSWORD:-astro}@postgres:5432/astro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["tools"]
+    restart: "no"
+
+  web:
+    build:
+      context: ./web
+      target: runtime
+    restart: unless-stopped
+    environment:
+      NUXT_DATABASE_URL: postgres://astro:${POSTGRES_PASSWORD:-astro}@postgres:5432/astro
+      NUXT_ASTRO_SERVICE_URL: http://astro-service:8000
+      # LLM endpoint comes from .env / CI secret — not committed. Required.
+      NUXT_LLM_BASE_URL: ${NUXT_LLM_BASE_URL:?NUXT_LLM_BASE_URL is required}
+      NUXT_LLM_API_KEY: ${NUXT_LLM_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      astro-service:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  astro-pgdata:

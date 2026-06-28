@@ -1,0 +1,29 @@
+{
+  "name": "web",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun scripts/migrate.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "nanoid": "^5.1.16",
+    "nuxt": "^4.4.8",
+    "postgres": "^3.4.9",
+    "vue": "^3.5.38",
+    "vue-router": "^5.1.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "vitest": "^4.1.9"
+  }
+}
