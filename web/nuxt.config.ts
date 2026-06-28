@@ -3,6 +3,17 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  app: {
+    head: {
+      title: 'Астро-нумерология',
+      link: [
+        // SVG for modern browsers; .ico fallback for the rest.
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'alternate icon', type: 'image/x-icon', href: '/favicon.ico' },
+      ],
+    },
+  },
+
   runtimeConfig: {
     // Base URL of the Python astro-service. Override in prod with the env var
     // NUXT_ASTRO_SERVICE_URL. Server-only (not exposed to the client).
