@@ -1,14 +1,27 @@
-FROM python:3.11-slim
+# --- builder: compile deps (pyswisseph et al.) into an isolated venv ---
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Build tools in case any wheel (pyswisseph / timezonefinder deps) builds from source.
+# Build tools needed only to compile wheels — kept out of the final image.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# --- runtime: slim image with just the venv + app, no compilers ---
+FROM python:3.11-slim AS runtime
+
+WORKDIR /app
+
+# Bring over the prebuilt venv only — no gcc/build-essential in the final image.
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 COPY . .
 
