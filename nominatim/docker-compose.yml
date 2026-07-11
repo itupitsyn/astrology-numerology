@@ -1,0 +1,47 @@
+# Self-hosted Nominatim — geocoding for CIS + Europe.
+#
+# Runs on its OWN instance (e.g. a Proxmox VM), SEPARATE from the app stack.
+# The app's astro-service points NOMINATIM_URL at this instance and falls back
+# to a secondary instance / public OSM for the rest of the world.
+#
+# One-time setup:
+#   ./prepare-pbf.sh                 # download + merge regions -> data/cis-europe.osm.pbf
+#   cp .env.example .env             # optional: set password / threads
+#   docker compose up -d
+#   docker compose logs -f nominatim # import runs on first boot; hours for Europe
+#
+# When the log shows "Import finished" the API is live on :8080. Verify:
+#   curl "http://localhost:8080/status?format=json"
+#   curl "http://localhost:8080/search?q=Москва&format=jsonv2&limit=1"
+services:
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: nominatim
+    restart: unless-stopped
+    environment:
+      # Import the pre-merged local PBF produced by ./prepare-pbf.sh.
+      PBF_PATH: /nominatim/data/cis-europe.osm.pbf
+      # Wikipedia/Wikidata importance ranking -> noticeably better result order.
+      # Costs extra time + a few GB. Set "false" to skip.
+      IMPORT_WIKIPEDIA: "true"
+      # Superuser password for the embedded Postgres (change in .env).
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD:-nominatim}
+      # Import parallelism — match to the vCPUs you allocated (2 on your box).
+      THREADS: ${THREADS:-2}
+      # Import detail. "full" = full search DB. Use "address" to shrink the DB
+      # (~40% smaller) if you only ever geocode places/addresses, not POIs.
+      # IMPORT_STYLE: address
+    volumes:
+      # PBF source (read-only). Produced by prepare-pbf.sh.
+      - ./data:/nominatim/data:ro
+      # Persist the imported DB so a container restart does NOT re-import.
+      # NOTE: the path's PG major version must match the image tag. 4.4 -> 16.
+      # Verify once with:  docker exec nominatim ls /var/lib/postgresql/
+      - nominatim-data:/var/lib/postgresql/16/main
+    ports:
+      - "8080:8080"
+    # Postgres needs shared memory for the import; bump if the import OOMs.
+    shm_size: 1g
+
+volumes:
+  nominatim-data:

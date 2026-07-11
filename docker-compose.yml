@@ -32,7 +32,10 @@ services:
     build: ./astro-service
     restart: unless-stopped
     environment:
+      # Primary: self-hosted regional Nominatim (see ./nominatim). Fallback
+      # covers the rest of the world; empty disables it.
       NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org}
+      NOMINATIM_FALLBACK_URL: ${NOMINATIM_FALLBACK_URL:-}
       NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-astro-numerology-app/1.0}
       GEOCODING_LANGUAGE: ${GEOCODING_LANGUAGE:-ru}
     expose:
