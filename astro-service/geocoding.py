@@ -1,7 +1,10 @@
 """Geocoding against a self-hosted Nominatim instance + timezone resolution.
 
-No third-party geocoding APIs are used: all lookups go to the local Nominatim
-server configured via `NOMINATIM_URL`. Timezones are derived offline from
+Lookups go to a **primary** Nominatim server (`NOMINATIM_URL`, a self-hosted
+regional instance). If the primary has no match for a query — or is unreachable
+— and a **fallback** is configured (`NOMINATIM_FALLBACK_URL`, e.g. a separate
+full-planet instance or the public OSM one), the query is retried there so
+out-of-region places still resolve. Timezones are derived offline from
 coordinates with `timezonefinder`.
 """
 
@@ -37,25 +40,36 @@ def resolve_timezone(latitude: float, longitude: float) -> str:
 
 
 class NominatimError(RuntimeError):
-    """Raised when the local Nominatim instance is unreachable or errors out."""
+    """Raised when a Nominatim instance is unreachable or errors out."""
 
 
 class GeocodingService:
-    """Thin async client for the local Nominatim /search endpoint."""
+    """Async client for Nominatim /search with an optional fallback instance."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
+        headers = {"User-Agent": self._settings.nominatim_user_agent}
         self._client = httpx.AsyncClient(
             base_url=self._settings.nominatim_url,
             timeout=self._settings.geocoding_timeout,
-            headers={"User-Agent": self._settings.nominatim_user_agent},
+            headers=headers,
         )
+        # Optional secondary instance for regions the primary doesn't cover.
+        self._fallback: httpx.AsyncClient | None = None
+        if self._settings.nominatim_fallback_url:
+            self._fallback = httpx.AsyncClient(
+                base_url=self._settings.nominatim_fallback_url,
+                timeout=self._settings.geocoding_timeout,
+                headers=headers,
+            )
 
     async def aclose(self) -> None:
         await self._client.aclose()
+        if self._fallback is not None:
+            await self._fallback.aclose()
 
     async def ping(self) -> bool:
-        """Best-effort reachability check for the /health endpoint."""
+        """Best-effort reachability check for the primary /status endpoint."""
         try:
             resp = await self._client.get("/status", params={"format": "json"})
             return resp.status_code == 200
@@ -69,7 +83,27 @@ class GeocodingService:
         limit: int = 5,
         language: str | None = None,
     ) -> list[GeoLocation]:
-        """Geocode a free-form query into a list of candidate locations."""
+        """Geocode a free-form query, trying the primary then the fallback."""
+        results = await self._search_one(self._client, query, limit, language, is_primary=True)
+        if results or self._fallback is None:
+            return results
+        logger.info("No primary match for %r; retrying via fallback Nominatim", query)
+        return await self._search_one(self._fallback, query, limit, language, is_primary=False)
+
+    async def _search_one(
+        self,
+        client: httpx.AsyncClient,
+        query: str,
+        limit: int,
+        language: str | None,
+        is_primary: bool,
+    ) -> list[GeoLocation]:
+        """Query a single Nominatim instance.
+
+        On a primary failure with a fallback configured, return `[]` so the
+        caller routes to the fallback rather than surfacing the error. Any other
+        failure raises `NominatimError`.
+        """
         params = {
             "q": query,
             "format": "jsonv2",
@@ -78,9 +112,12 @@ class GeocodingService:
             "accept-language": language or self._settings.geocoding_language,
         }
         try:
-            resp = await self._client.get("/search", params=params)
+            resp = await client.get("/search", params=params)
             resp.raise_for_status()
         except httpx.HTTPError as exc:
+            if is_primary and self._fallback is not None:
+                logger.warning("Primary Nominatim failed (%s); trying fallback", exc)
+                return []
             raise NominatimError(f"Nominatim request failed: {exc}") from exc
 
         results: list[GeoLocation] = []
