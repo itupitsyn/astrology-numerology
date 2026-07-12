@@ -183,7 +183,7 @@ function submit() {
 </template>
 
 <style scoped>
-.wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 5rem; }
+.wrap { width: 100%; max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 5rem; flex-grow: 1; }
 .hero { text-align: center; margin-bottom: 1.75rem; }
 .hero h1 { margin: 0; font-size: 2rem; }
 .sub { color: var(--text-dim); margin: 0.35rem 0 0; }
@@ -195,7 +195,7 @@ function submit() {
   padding: 1.25rem 1.4rem;
   box-shadow: 0 10px 40px -20px rgba(0, 0, 0, 0.7);
 }
-.form .row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; }
+.form .row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; align-items: flex-start; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; min-width: 200px; position: relative; }
 .field > span { font-size: 0.82rem; color: var(--text-dim); }
 .field.city { min-width: 280px; flex: 1.4; }
@@ -229,8 +229,42 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .hint { color: var(--text-dim); font-size: 0.78rem; }
 
 .moment { align-items: center; }
-.check { display: flex; align-items: center; gap: 0.5rem; color: var(--text); font-size: 0.9rem; cursor: pointer; }
-.check input { width: auto; }
+.check { display: flex; align-items: center; gap: 0.55rem; color: var(--text); font-size: 0.9rem; cursor: pointer; user-select: none; }
+.check input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-input);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+}
+.check input[type="checkbox"]:hover { border-color: var(--accent); }
+.check input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, var(--accent), #7c5cff);
+  border-color: var(--accent);
+}
+.check input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 3.5px;
+  height: 7px;
+  border: solid #160f2e;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.check input[type="checkbox"]:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(179, 136, 255, 0.3);
+}
 
 .input-wrap { position: relative; }
 .input-wrap input { width: 100%; }
