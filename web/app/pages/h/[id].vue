@@ -34,7 +34,7 @@ const { data, error } = await useFetch<SharedHorary>(`/api/horary/${route.params
 </template>
 
 <style scoped>
-.wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 5rem; }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 5rem; flex-grow: 1; }
 .hero { text-align: center; margin-bottom: 1.75rem; }
 .hero h1 { margin: 0; font-size: 2rem; }
 .sub { color: var(--text-dim); margin: 0.35rem 0 0; }
