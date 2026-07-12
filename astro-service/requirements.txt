@@ -10,6 +10,9 @@ pyswisseph==2.10.3.2
 
 # --- Timezone / geo helpers ---
 timezonefinder==6.5.7
+# Used directly by the horary "ask now" path (current time in the location's
+# zone). Also a kerykeion dependency, but pinned here so we don't rely on that.
+pytz==2024.2
 
 # --- HTTP client (local Nominatim) ---
 httpx==0.28.1

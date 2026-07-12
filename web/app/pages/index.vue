@@ -71,6 +71,7 @@ function submit() {
     <header class="hero">
       <h1>✦ Астро-нумерология</h1>
       <p class="sub">Натальная карта, числа судьбы и живая интерпретация</p>
+      <NuxtLink to="/horary" class="nav-link">☽ Задать хорарный вопрос →</NuxtLink>
     </header>
 
     <!-- ФОРМА -->
@@ -164,6 +165,8 @@ function submit() {
 .hero { text-align: center; margin-bottom: 1.75rem; }
 .hero h1 { margin: 0; font-size: 2rem; }
 .sub { color: var(--text-dim); margin: 0.35rem 0 0; }
+.nav-link { display: inline-block; margin-top: 0.7rem; color: var(--accent-2); text-decoration: none; font-size: 0.9rem; }
+.nav-link:hover { text-decoration: underline; }
 
 .card {
   background: var(--bg-card);

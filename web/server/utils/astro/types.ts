@@ -92,3 +92,107 @@ export interface NatalChart {
   aspects: Aspect[]
   lunar_phase: LunarPhase
 }
+
+// --- Horary chart (mirror of astro-service models.py HoraryChart) ---
+export interface HoraryQuestion {
+  question: string
+  quesited_house: number
+  querent_house?: number
+  ask_now?: boolean
+  year?: number | null
+  month?: number | null
+  day?: number | null
+  hour?: number | null
+  minute?: number | null
+  latitude: number
+  longitude: number
+  timezone?: string | null
+  city?: string | null
+}
+
+export interface DignityInfo {
+  planet: string
+  domicile: boolean
+  exaltation: boolean
+  triplicity: boolean
+  term: boolean
+  face: boolean
+  detriment: boolean
+  fall: boolean
+  peregrine: boolean
+  score: number
+}
+
+export interface AspectHit {
+  p1: string
+  p2: string
+  aspect: string
+  orb: number
+  applying: boolean
+  days_to_perfect?: number | null
+  degrees_to_perfect?: number | null
+  perfects_before_sign_exit: boolean
+  favorable: boolean
+}
+
+export interface MoonState {
+  void_of_course: boolean
+  via_combusta: boolean
+  next_aspect?: AspectHit | null
+  last_aspect?: AspectHit | null
+}
+
+export interface ReceptionInfo {
+  p1_receives_p2: string[]
+  p2_receives_p1: string[]
+  mutual: boolean
+}
+
+export interface Significator {
+  role: string
+  house: number
+  planet: string
+  sign: string
+  position: number
+  abs_position: number
+  house_of_planet?: number | null
+  retrograde: boolean
+  speed: number
+  dignity: DignityInfo
+}
+
+export type HoraryVerdict = 'yes' | 'no' | 'qualified'
+
+export interface HoraryJudgment {
+  verdict: HoraryVerdict
+  perfection_mode?: string | null
+  timing_days?: number | null
+  reasons: string[]
+}
+
+export interface RadicalityFlags {
+  ascendant_too_early: boolean
+  ascendant_too_late: boolean
+  moon_void_of_course: boolean
+  moon_via_combusta: boolean
+  saturn_in_first_or_seventh: boolean
+}
+
+export interface HoraryChart {
+  question: string
+  quesited_house: number
+  querent_house: number
+  is_day_chart: boolean
+  moment_utc: string
+  moment_local: string
+  timezone: string
+  latitude: number
+  longitude: number
+  chart: NatalChart
+  querent: Significator
+  quesited: Significator
+  moon: MoonState
+  receptions: ReceptionInfo
+  radicality: RadicalityFlags
+  judgment: HoraryJudgment
+}

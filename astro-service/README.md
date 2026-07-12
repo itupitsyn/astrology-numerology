@@ -34,6 +34,7 @@ Interactive API docs: http://localhost:8000/docs
 | GET    | `/health`  | Liveness + Nominatim reachability                    |
 | POST   | `/geocode` | Free-form place → coordinates + IANA timezone        |
 | POST   | `/natal`   | Birth data → full natal chart (planets, houses, ...) |
+| POST   | `/horary`  | Question + moment → horary chart + deterministic verdict |
 
 ### Example: geocode
 
@@ -59,6 +60,57 @@ curl -X POST http://localhost:8000/natal \
 ```
 
 If `timezone` is omitted it is derived from the coordinates.
+
+### Example: horary judgment
+
+```bash
+curl -X POST http://localhost:8000/horary \
+  -H "Content-Type: application/json" \
+  -d '{
+        "question": "Получу ли я эту работу?",
+        "quesited_house": 10,
+        "ask_now": true,
+        "latitude": 55.7558, "longitude": 37.6173
+      }'
+```
+
+Cast for the **moment the question is received** using **Regiomontanus** houses
+(the horary standard, vs. Placidus for natal). Set `ask_now: true` to use the
+current time at the location, or pass explicit `year..minute`. `quesited_house`
+is the house the question is about (2=money, 7=partner, 10=career, ...).
+
+The verdict (`yes` / `no` / `qualified`), significators, essential dignities,
+Moon condition, receptions and radicality flags are all computed
+**deterministically in Python** (`horary.py` + `dignities.py`) from the
+classical rules — an LLM only narrates this result, it never decides it.
+
+## Horary engine & tests
+
+The deterministic core lives in:
+
+- `dignities.py` — traditional dignity tables (rulers, exaltations,
+  triplicities, Egyptian terms, Chaldean faces) + Lilly scoring.
+- `horary.py` — chart casting, aspect geometry (applying/separating,
+  perfection before sign exit), Moon void-of-course, and the verdict engine
+  (perfection / translation / collection / prohibition).
+
+Accuracy tests run without `pytest`:
+
+```bash
+python test_horary.py      # dignity tables, aspect geometry, verdict scenarios
+python test_reference.py   # ephemeris/house/significator wiring + fixtures
+```
+
+- `test_horary.py` — dignity tables vs. textbook facts, aspect geometry vs.
+  hand-built positions, and **verdict scenarios** that isolate each judgment
+  mode (direct / translation / collection / prohibition / refranation /
+  combustion / besiegement / void Moon).
+- `test_reference.py` — the *astronomical/wiring* layer that can be checked
+  objectively: kerykeion positions vs. raw Swiss Ephemeris, the Regiomontanus
+  Ascendant vs. an independent `swe.houses_ex`, significator = ruler of the
+  Ascendant, and the Sun's sign vs. the known date. It also holds a
+  `REFERENCE_CHARTS` fixture table — drop real, expert-judged horary charts
+  there with `expect_verdict=` to turn it into whole-chart verdict calibration.
 
 ## Notes
 
