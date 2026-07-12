@@ -12,6 +12,8 @@ import type {
   BirthData,
   GeocodeRequest,
   GeocodeResponse,
+  HoraryChart,
+  HoraryQuestion,
   NatalChart,
 } from './types'
 
@@ -49,4 +51,8 @@ export function fetchNatalChart(event: H3Event, body: BirthData): Promise<NatalC
 
 export function fetchGeocode(event: H3Event, body: GeocodeRequest): Promise<GeocodeResponse> {
   return callAstro<GeocodeResponse>(event, '/geocode', body)
+}
+
+export function fetchHoraryChart(event: H3Event, body: HoraryQuestion): Promise<HoraryChart> {
+  return callAstro<HoraryChart>(event, '/horary', body)
 }

@@ -34,6 +34,7 @@ Interactive API docs: http://localhost:8000/docs
 | GET    | `/health`  | Liveness + Nominatim reachability                    |
 | POST   | `/geocode` | Free-form place → coordinates + IANA timezone        |
 | POST   | `/natal`   | Birth data → full natal chart (planets, houses, ...) |
+| POST   | `/horary`  | Question + moment → horary chart + deterministic verdict |
 
 ### Example: geocode
 
@@ -59,6 +60,46 @@ curl -X POST http://localhost:8000/natal \
 ```
 
 If `timezone` is omitted it is derived from the coordinates.
+
+### Example: horary judgment
+
+```bash
+curl -X POST http://localhost:8000/horary \
+  -H "Content-Type: application/json" \
+  -d '{
+        "question": "Получу ли я эту работу?",
+        "quesited_house": 10,
+        "ask_now": true,
+        "latitude": 55.7558, "longitude": 37.6173
+      }'
+```
+
+Cast for the **moment the question is received** using **Regiomontanus** houses
+(the horary standard, vs. Placidus for natal). Set `ask_now: true` to use the
+current time at the location, or pass explicit `year..minute`. `quesited_house`
+is the house the question is about (2=money, 7=partner, 10=career, ...).
+
+The verdict (`yes` / `no` / `qualified`), significators, essential dignities,
+Moon condition, receptions and radicality flags are all computed
+**deterministically in Python** (`horary.py` + `dignities.py`) from the
+classical rules — an LLM only narrates this result, it never decides it.
+
+## Horary engine & tests
+
+The deterministic core lives in:
+
+- `dignities.py` — traditional dignity tables (rulers, exaltations,
+  triplicities, Egyptian terms, Chaldean faces) + Lilly scoring.
+- `horary.py` — chart casting, aspect geometry (applying/separating,
+  perfection before sign exit), Moon void-of-course, and the verdict engine
+  (perfection / translation / collection / prohibition).
+
+Accuracy tests validate the tables against textbook facts and the geometry
+against hand-built positions. They run without `pytest`:
+
+```bash
+python test_horary.py    # or: pytest test_horary.py
+```
 
 ## Notes
 

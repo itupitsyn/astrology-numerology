@@ -125,6 +125,50 @@ def _lunar_phase(subject: AstrologicalSubject) -> LunarPhase:
     )
 
 
+def serialize_chart(
+    subject: AstrologicalSubject,
+    *,
+    name: str,
+    latitude: float,
+    longitude: float,
+    tz_str: str,
+    zodiac_type: str,
+    houses_system: str,
+) -> NatalChart:
+    """Serialize an already-built kerykeion subject into a NatalChart.
+
+    Shared by the natal and horary paths so the visual chart (planets, axes,
+    houses, aspects, lunar phase) is produced identically regardless of the
+    house system the subject was cast with.
+    """
+    planets = [_to_point(_get(subject, attr)) for attr in _PLANET_ATTRS if _get(subject, attr) is not None]
+    axes = [_to_point(_get(subject, attr)) for attr in _AXIS_ATTRS if _get(subject, attr) is not None]
+    houses = [_to_house(_get(subject, attr)) for attr in _HOUSE_ATTRS if _get(subject, attr) is not None]
+
+    try:
+        raw_aspects = NatalAspects(subject).relevant_aspects
+        aspects = [_to_aspect(a) for a in raw_aspects]
+    except Exception as exc:  # noqa: BLE001 - aspects are non-critical, never fail the chart
+        logger.warning("Aspect computation failed: %s", exc)
+        aspects = []
+
+    return NatalChart(
+        name=name,
+        birth_datetime_utc=str(_get(subject, "iso_formatted_utc_datetime", "")),
+        birth_datetime_local=str(_get(subject, "iso_formatted_local_datetime", "")),
+        timezone=tz_str,
+        latitude=latitude,
+        longitude=longitude,
+        zodiac_type=zodiac_type,
+        houses_system=houses_system,
+        planets=planets,
+        axes=axes,
+        houses=houses,
+        aspects=aspects,
+        lunar_phase=_lunar_phase(subject),
+    )
+
+
 def compute_natal_chart(birth: BirthData, settings: Settings | None = None) -> NatalChart:
     """Compute a natal chart from birth data.
 
@@ -150,29 +194,12 @@ def compute_natal_chart(birth: BirthData, settings: Settings | None = None) -> N
         online=False,
     )
 
-    planets = [_to_point(_get(subject, attr)) for attr in _PLANET_ATTRS if _get(subject, attr) is not None]
-    axes = [_to_point(_get(subject, attr)) for attr in _AXIS_ATTRS if _get(subject, attr) is not None]
-    houses = [_to_house(_get(subject, attr)) for attr in _HOUSE_ATTRS if _get(subject, attr) is not None]
-
-    try:
-        raw_aspects = NatalAspects(subject).relevant_aspects
-        aspects = [_to_aspect(a) for a in raw_aspects]
-    except Exception as exc:  # noqa: BLE001 - aspects are non-critical, never fail the chart
-        logger.warning("Aspect computation failed: %s", exc)
-        aspects = []
-
-    return NatalChart(
+    return serialize_chart(
+        subject,
         name=birth.name,
-        birth_datetime_utc=str(_get(subject, "iso_formatted_utc_datetime", "")),
-        birth_datetime_local=str(_get(subject, "iso_formatted_local_datetime", "")),
-        timezone=tz_str,
         latitude=birth.latitude,
         longitude=birth.longitude,
+        tz_str=tz_str,
         zodiac_type=settings.zodiac_type,
         houses_system=settings.houses_system,
-        planets=planets,
-        axes=axes,
-        houses=houses,
-        aspects=aspects,
-        lunar_phase=_lunar_phase(subject),
     )
