@@ -59,6 +59,15 @@ LILLY_ORB = {
 # Via combusta: 15 Libra .. 15 Scorpio, in absolute ecliptic longitude.
 _VIA_COMBUSTA = (195.0, 225.0)
 
+# Nearness to the Sun by longitudinal separation. Cazimi (in the heart of the
+# Sun) fortifies; combustion and being "under the beams" severely afflict.
+_CAZIMI_ORB = 17.0 / 60.0   # 17 arcminutes
+_COMBUST_ORB = 8.5
+_UNDER_BEAMS_ORB = 15.0
+
+# The two malefics, for besiegement.
+_MALEFICS = ("Mars", "Saturn")
+
 # Numeric step (days) used to detect whether an aspect is applying.
 _DT = 0.02
 
@@ -327,15 +336,119 @@ def _prohibition(
     return None
 
 
-def judge(
+def sun_relation(body: Body, sun: Body) -> Optional[str]:
+    """'cazimi' | 'combust' | 'under_beams' | None for a body vs. the Sun."""
+    if body.name == "Sun":
+        return None
+    sep = _separation(body.lon, sun.lon)
+    if sep <= _CAZIMI_ORB:
+        return "cazimi"
+    if sep <= _COMBUST_ORB:
+        return "combust"
+    if sep <= _UNDER_BEAMS_ORB:
+        return "under_beams"
+    return None
+
+
+def speed_at(planet: str, julian_day: float, days: float) -> float:
+    """Longitudinal speed (deg/day) of a classical planet at jd + days."""
+    res = swe.calc_ut(julian_day + days, _SWE_ID[planet], swe.FLG_SWIEPH | swe.FLG_SPEED)
+    return res[0][3]
+
+
+def _refranates(sig: Body, days_to_perfect: Optional[float], julian_day: float) -> bool:
+    """True if the significator stations / changes direction before the aspect
+    perfects — the classical refranation that breaks off the matter."""
+    if days_to_perfect is None or days_to_perfect <= 0:
+        return False
+    if sig.name not in _SWE_ID:
+        return False
+    future = speed_at(sig.name, julian_day, days_to_perfect)
+    # Direction flip (an odd number of zero-crossings) between now and perfection.
+    return (sig.speed >= 0) != (future >= 0)
+
+
+def _signed_delta(target: float, ref: float) -> float:
+    """Shortest signed angle from ref to target, in (-180, 180]."""
+    return (target - ref + 180.0) % 360.0 - 180.0
+
+
+def _besieged(sig: Body, others: dict[str, Body]) -> bool:
+    """Bodily besiegement: the significator is conjunct BOTH malefics (within
+    orb of each) and physically enclosed between them — Mars on one side, Saturn
+    on the other. This strict form avoids the over-broad 'by ray' reading."""
+    if sig.name in _MALEFICS:
+        return False
+    mars, saturn = others.get("Mars"), others.get("Saturn")
+    if mars is None or saturn is None:
+        return False
+    if _separation(sig.lon, mars.lon) > _moiety_sum(sig.name, "Mars"):
+        return False
+    if _separation(sig.lon, saturn.lon) > _moiety_sum(sig.name, "Saturn"):
+        return False
+    # The two malefics must flank the significator on opposite sides.
+    return (_signed_delta(mars.lon, sig.lon) > 0) != (_signed_delta(saturn.lon, sig.lon) > 0)
+
+
+def _significator_afflictions(
+    role: str, sig: Body, sun: Body, others: dict[str, Body]
+) -> tuple[list[str], bool, bool]:
+    """Reasons + (afflicted, strengthened) flags for a significator's condition
+    relative to the Sun and the malefics."""
+    reasons: list[str] = []
+    afflicted = False
+    strengthened = False
+
+    rel = sun_relation(sig, sun)
+    if rel == "cazimi":
+        reasons.append(f"Сигнификатор {role} ({sig.name}) в казими (в сердце Солнца) — сильно укреплён.")
+        strengthened = True
+    elif rel == "combust":
+        reasons.append(f"Сигнификатор {role} ({sig.name}) сожжён Солнцем — серьёзная порча.")
+        afflicted = True
+    elif rel == "under_beams":
+        reasons.append(f"Сигнификатор {role} ({sig.name}) под лучами Солнца — ослаблен.")
+        afflicted = True
+
+    if _besieged(sig, others):
+        reasons.append(f"Сигнификатор {role} ({sig.name}) в осаде между Марсом и Сатурном — под давлением.")
+        afflicted = True
+
+    return reasons, afflicted, strengthened
+
+
+def _apply_afflictions(
+    j: Judgment, querent: Body, quesited: Body, others: dict[str, Body]
+) -> Judgment:
+    """Fold significator condition into a positive verdict: combustion/besieged
+    downgrade a 'yes' to 'qualified' (they weaken but don't by themselves deny);
+    cazimi is noted as a fortification."""
+    sun = others.get("Sun")
+    if sun is None:
+        return j
+
+    afflicted_any = False
+    for role, sig in (("кверента", querent), ("предмета вопроса", quesited)):
+        lines, afflicted, _strong = _significator_afflictions(role, sig, sun, others)
+        j.reasons.extend(lines)
+        afflicted_any = afflicted_any or afflicted
+
+    if j.verdict == "yes" and afflicted_any:
+        j.verdict = "qualified"
+        j.reasons.append("Из-за поражения сигнификатора(ов) исход возможен, но с потерями/осложнениями.")
+    return j
+
+
+def _judge_core(
     querent: Body,
     quesited: Body,
     moon: MoonState,
     moon_body: Body,
     others: dict[str, Body],
     is_day: bool,
+    julian_day: float,
 ) -> Judgment:
-    """Deterministic horary verdict from the classical perfection modes."""
+    """The perfection/denial decision tree (before condition afflictions)."""
     reasons: list[str] = []
 
     # Reception can soften a hard aspect or an otherwise weak perfection.
@@ -352,6 +465,15 @@ def judge(
                 f"чем перфектируется {querent.name}–{quesited.name}."
             )
             return Judgment("no", "prohibition", None, reasons)
+
+        # Refranation: a significator turns retrograde/stations before perfection.
+        for role, sig in (("кверента", querent), ("предмета вопроса", quesited)):
+            if _refranates(sig, direct.days_to_perfect, julian_day):
+                reasons.append(
+                    f"Рефранация: сигнификатор {role} ({sig.name}) разворачивается/стационарит "
+                    f"до завершения аспекта — дело срывается."
+                )
+                return Judgment("no", "refranation", None, reasons)
 
         favorable = direct.favorable or direct.aspect == "conjunction"
         reasons.append(
@@ -408,6 +530,21 @@ def judge(
     else:
         reasons.append("Между сигнификаторами нет применительного аспекта и нет переноса/собирания света.")
     return Judgment("no", "none", None, reasons)
+
+
+def judge(
+    querent: Body,
+    quesited: Body,
+    moon: MoonState,
+    moon_body: Body,
+    others: dict[str, Body],
+    is_day: bool,
+    julian_day: float,
+) -> Judgment:
+    """Deterministic horary verdict: perfection/denial tree, then fold in the
+    significators' condition (combustion, besiegement)."""
+    j = _judge_core(querent, quesited, moon, moon_body, others, is_day, julian_day)
+    return _apply_afflictions(j, querent, quesited, others)
 
 
 # --------------------------------------------------------------------------- #
@@ -509,7 +646,7 @@ def compute_horary(
              f"дела тесно связаны."],
         )
     else:
-        judgment = judge(q_body, qu_body, moon_state, moon_body, bodies, is_day)
+        judgment = judge(q_body, qu_body, moon_state, moon_body, bodies, is_day, subject.julian_day)
 
     return HoraryComputation(
         subject=subject,

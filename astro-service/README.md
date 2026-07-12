@@ -94,12 +94,23 @@ The deterministic core lives in:
   perfection before sign exit), Moon void-of-course, and the verdict engine
   (perfection / translation / collection / prohibition).
 
-Accuracy tests validate the tables against textbook facts and the geometry
-against hand-built positions. They run without `pytest`:
+Accuracy tests run without `pytest`:
 
 ```bash
-python test_horary.py    # or: pytest test_horary.py
+python test_horary.py      # dignity tables, aspect geometry, verdict scenarios
+python test_reference.py   # ephemeris/house/significator wiring + fixtures
 ```
+
+- `test_horary.py` — dignity tables vs. textbook facts, aspect geometry vs.
+  hand-built positions, and **verdict scenarios** that isolate each judgment
+  mode (direct / translation / collection / prohibition / refranation /
+  combustion / besiegement / void Moon).
+- `test_reference.py` — the *astronomical/wiring* layer that can be checked
+  objectively: kerykeion positions vs. raw Swiss Ephemeris, the Regiomontanus
+  Ascendant vs. an independent `swe.houses_ex`, significator = ruler of the
+  Ascendant, and the Sun's sign vs. the known date. It also holds a
+  `REFERENCE_CHARTS` fixture table — drop real, expert-judged horary charts
+  there with `expect_verdict=` to turn it into whole-chart verdict calibration.
 
 ## Notes
 

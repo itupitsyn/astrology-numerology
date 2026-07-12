@@ -199,7 +199,7 @@ class Significator(BaseModel):
 
 class HoraryJudgment(BaseModel):
     verdict: str = Field(..., description="'yes' | 'no' | 'qualified'.")
-    perfection_mode: Optional[str] = Field(None, description="direct | translation | collection | moon | prohibition | same-ruler | none.")
+    perfection_mode: Optional[str] = Field(None, description="direct | translation | collection | moon | prohibition | refranation | same-ruler | none.")
     timing_days: Optional[float] = Field(None, description="Approx. degrees-to-perfection as a raw time hint (days).")
     reasons: list[str] = Field(default_factory=list, description="Human-readable factors behind the verdict (Russian).")
 

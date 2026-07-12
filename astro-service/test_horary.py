@@ -3,15 +3,18 @@
 Runnable both under pytest and standalone (``python test_horary.py``) so the
 deterministic core stays verifiable without adding a test dependency.
 
-Two layers:
+Three layers:
   1. Static dignity tables vs. textbook facts (Ptolemy / Lilly).
   2. Aspect geometry vs. hand-constructed positions where the answer is exact.
+  3. Verdict scenarios: synthetic charts that isolate each perfection/denial
+     mode, so the judgment engine's decisions are pinned to classical rules.
 """
 
 from __future__ import annotations
 
 import dignities as dig
-from horary import Body, find_aspect, analyse_moon
+import horary as _H
+from horary import Body, find_aspect, analyse_moon, judge
 
 
 # --------------------------------------------------------------------------- #
@@ -169,6 +172,98 @@ def test_via_combusta_flag():
     moon = Body("Moon", lon=_abs(6, 20), speed=13.0)  # 20 Libra -> in via combusta
     state = analyse_moon(moon, {"Moon": moon})
     assert state.via_combusta
+
+
+# --------------------------------------------------------------------------- #
+# 3. Verdict scenarios — synthetic charts isolating each mode.
+#
+# Non-involved planets are parked far from the 0..130 test zone so they never
+# form incidental aspects. Refranation needs a planet's *future* speed, which
+# would otherwise come from the real ephemeris; `_run` injects a deterministic
+# `speed_at` (flips sign only for the named `refran` planet) so scenarios are
+# self-contained.
+# --------------------------------------------------------------------------- #
+def _mk(**bodies) -> dict[str, Body]:
+    d = {name: Body(name, lon, sp) for name, (lon, sp) in bodies.items()}
+    d.setdefault("Sun", Body("Sun", 200.0, 0.9))
+    d.setdefault("Moon", Body("Moon", 340.0, 13.0))
+    return d
+
+
+def _run(others, q, qu, refran=None, is_day=True):
+    _H.speed_at = lambda planet, jd, days: (-1.0 if planet == refran else 1.0)
+    ms = analyse_moon(others["Moon"], others)
+    return judge(others[q], others[qu], ms, others["Moon"], others, is_day, 2461232.0)
+
+
+def test_scenario_direct_perfection_favorable_yes():
+    j = _run(_mk(Venus=(6.0, 1.0), Jupiter=(128.0, 0.08)), "Venus", "Jupiter")
+    assert j.verdict == "yes" and j.perfection_mode == "direct"
+
+
+def test_scenario_hard_aspect_one_way_reception_qualified():
+    # Mars square Saturn, applying; Mars receives Saturn by term (Cancer 0-7) ->
+    # not mutual, so a qualified "yes" rather than a flat yes.
+    j = _run(_mk(Mars=(4.0, 0.5), Saturn=(96.0, 0.03)), "Mars", "Saturn")
+    assert j.verdict == "qualified" and j.perfection_mode == "direct"
+
+
+def test_scenario_translation_of_light_yes():
+    # No direct V-J perfection (both near-stationary); fast Mercury separates
+    # from Venus and applies to a trine with Jupiter, carrying the light.
+    j = _run(_mk(Venus=(6.0, 0.05), Jupiter=(128.0, 0.05), Mercury=(7.0, 1.4)), "Venus", "Jupiter")
+    assert j.verdict == "yes" and j.perfection_mode == "translation"
+
+
+def test_scenario_collection_of_light_yes():
+    # Venus and Mars (no aspect to each other) both apply to slower Saturn.
+    j = _run(_mk(Venus=(38.0, 1.0), Mars=(8.0, 0.6), Saturn=(100.0, 0.03)), "Venus", "Mars")
+    assert j.verdict == "yes" and j.perfection_mode == "collection"
+
+
+def test_scenario_prohibition_no():
+    # V-J trine applying, but Mars (bodily at 7) perfects with Venus first.
+    j = _run(_mk(Venus=(6.0, 1.0), Jupiter=(128.0, 0.08), Mars=(7.0, 0.0)), "Venus", "Jupiter")
+    assert j.verdict == "no" and j.perfection_mode == "prohibition"
+
+
+def test_scenario_refranation_no():
+    # V-J trine applying, but Venus turns retrograde before it perfects.
+    j = _run(_mk(Venus=(6.0, 1.0), Jupiter=(128.0, 0.08)), "Venus", "Jupiter", refran="Venus")
+    assert j.verdict == "no" and j.perfection_mode == "refranation"
+
+
+def test_scenario_combustion_downgrades_yes_to_qualified():
+    # Direct trine would be yes, but the quesited (Jupiter) is combust the Sun.
+    j = _run(_mk(Venus=(6.0, 1.0), Jupiter=(128.0, 0.08), Sun=(130.0, 0.95)), "Venus", "Jupiter")
+    assert j.verdict == "qualified" and j.perfection_mode == "direct"
+    assert any("сожжён" in r.lower() for r in j.reasons)
+
+
+def test_scenario_besiegement_downgrades_yes_to_qualified():
+    # Venus besieged bodily between Saturn (behind) and Mars (ahead).
+    j = _run(_mk(Venus=(6.0, 1.0), Jupiter=(128.0, 0.05), Saturn=(3.0, 0.03), Mars=(9.5, 0.0)), "Venus", "Jupiter")
+    assert j.verdict == "qualified" and j.perfection_mode == "direct"
+    assert any("осад" in r.lower() for r in j.reasons)
+
+
+def test_scenario_besiegement_no_false_positive_on_far_planet():
+    # A planet in trine to both malefics (not bodily between them) is NOT besieged.
+    others = _mk(Venus=(6.0, 1.0), Jupiter=(128.0, 0.05), Saturn=(3.0, 0.03), Mars=(9.5, 0.0))
+    assert not _H._besieged(others["Jupiter"], others)
+
+
+def test_scenario_void_moon_no_perfection_no():
+    # No significator aspect and the Moon is void of course -> "no".
+    j = _run(_mk(Venus=(6.0, 0.2), Jupiter=(51.0, 0.05), Moon=(269.0, 13.0)), "Venus", "Jupiter")
+    assert j.verdict == "no" and j.perfection_mode == "none"
+
+
+def test_cazimi_strengthens_not_afflicts():
+    # A significator in cazimi is fortified, not downgraded.
+    sun = Body("Sun", 130.0, 0.95)
+    jup = Body("Jupiter", 130.1, 0.08)  # within 17' of the Sun
+    assert _H.sun_relation(jup, sun) == "cazimi"
 
 
 # --------------------------------------------------------------------------- #
