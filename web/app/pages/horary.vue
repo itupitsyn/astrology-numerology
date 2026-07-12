@@ -30,6 +30,35 @@ async function copyShare() {
 
 const selectedHint = computed(() => categoryById(categoryId.value)?.hint ?? '')
 
+// Suggest a category from the question text (LLM classifies into our list).
+const suggesting = ref(false)
+const suggestError = ref('')
+const suggestedNote = ref('')
+async function suggestCategory() {
+  const q = question.value.trim()
+  if (!q || suggesting.value) return
+  suggesting.value = true
+  suggestError.value = ''
+  suggestedNote.value = ''
+  try {
+    const { categoryId: id } = await $fetch<{ categoryId: string | null }>(
+      '/api/horary/suggest-category',
+      { method: 'POST', body: { question: q } },
+    )
+    const cat = id ? categoryById(id) : undefined
+    if (cat) {
+      categoryId.value = cat.id
+      suggestedNote.value = `Тема подобрана: ${cat.label}. При необходимости поправьте вручную.`
+    } else {
+      suggestError.value = 'Не удалось определить тему — выберите вручную.'
+    }
+  } catch {
+    suggestError.value = 'Не удалось подобрать тему — попробуйте ещё раз.'
+  } finally {
+    suggesting.value = false
+  }
+}
+
 function onCityInput() {
   selected.value = null
   showDropdown.value = true
@@ -90,6 +119,14 @@ function submit() {
           placeholder="Например: получу ли я эту работу?"
         />
       </label>
+      <div class="suggest-row">
+        <button type="button" class="suggest" :disabled="!question.trim() || suggesting" @click="suggestCategory">
+          <span v-if="suggesting" class="spinner spinner-sm" />
+          {{ suggesting ? 'Подбираем…' : '✨ Подобрать тему по вопросу' }}
+        </button>
+        <small v-if="suggestError" class="suggest-note err">{{ suggestError }}</small>
+        <small v-else-if="suggestedNote" class="suggest-note ok">{{ suggestedNote }}</small>
+      </div>
 
       <div class="row">
         <label class="field">
@@ -227,6 +264,27 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 .hint { color: var(--text-dim); font-size: 0.78rem; }
+
+.suggest-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.55rem; }
+.suggest {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.suggest:hover:not(:disabled) { background: var(--accent); color: #160f2e; }
+.suggest:disabled { opacity: 0.45; cursor: not-allowed; }
+.suggest-note { font-size: 0.78rem; }
+.suggest-note.ok { color: #7ee0a0; }
+.suggest-note.err { color: var(--danger); }
 
 .moment { align-items: center; }
 .check { display: flex; align-items: center; gap: 0.55rem; color: var(--text); font-size: 0.9rem; cursor: pointer; user-select: none; }
