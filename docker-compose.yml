@@ -32,12 +32,24 @@ services:
     build: ./astro-service
     restart: unless-stopped
     environment:
-      # Primary: self-hosted regional Nominatim (see ./nominatim). Fallback
-      # covers the rest of the world; empty disables it.
+      # Primary geocoder: the public OSM Nominatim. A secondary instance can be
+      # added via NOMINATIM_FALLBACK_URL; empty disables it.
       NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org}
       NOMINATIM_FALLBACK_URL: ${NOMINATIM_FALLBACK_URL:-}
       NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-astro-numerology-app/1.0}
       GEOCODING_LANGUAGE: ${GEOCODING_LANGUAGE:-ru}
+      # Outbound budget, requests/second. Defaults to 1 because the default
+      # NOMINATIM_URL above is the PUBLIC OSM instance, whose policy is 1 req/s
+      # per application across all users. Set to 0 only when NOMINATIM_URL
+      # points at an instance you own.
+      NOMINATIM_RATE_LIMIT: ${NOMINATIM_RATE_LIMIT:-1}
+      NOMINATIM_FALLBACK_RATE_LIMIT: ${NOMINATIM_FALLBACK_RATE_LIMIT:-1}
+      # Merge both instances instead of stopping at the first non-empty answer.
+      # Only safe to disable when NOMINATIM_URL covers the whole planet.
+      GEOCODING_MERGE_SOURCES: ${GEOCODING_MERGE_SOURCES:-true}
+      GEOCODING_QUEUE_MAX_WAIT: ${GEOCODING_QUEUE_MAX_WAIT:-8}
+      GEOCODING_CACHE_SIZE: ${GEOCODING_CACHE_SIZE:-5000}
+      GEOCODING_CACHE_TTL: ${GEOCODING_CACHE_TTL:-86400}
     expose:
       - "8000"
 
