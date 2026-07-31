@@ -20,7 +20,7 @@ import pytz
 
 from config import Settings, get_settings
 from ephemeris import compute_natal_chart, serialize_chart
-from geocoding import GeocodingService, NominatimError, resolve_timezone
+from geocoding import GeocodingBusy, GeocodingService, NominatimError, resolve_timezone
 from horary import HoraryComputation, _house_number, compute_horary
 from models import (
     AspectHitInfo,
@@ -97,6 +97,14 @@ async def geocode(
             limit=payload.limit,
             language=payload.language,
         )
+    except GeocodingBusy as exc:
+        # Never sent upstream — the queue was too long. Retryable, so 503 with
+        # a hint rather than 502.
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+            headers={"Retry-After": "2"},
+        ) from exc
     except NominatimError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
