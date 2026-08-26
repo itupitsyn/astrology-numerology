@@ -8,6 +8,7 @@
 
 import type { H3Event } from 'h3'
 import { FetchError } from 'ofetch'
+import type { DailyForecast, DailyRequest } from './daily'
 import type {
   BirthData,
   GeocodeRequest,
@@ -55,4 +56,13 @@ export function fetchGeocode(event: H3Event, body: GeocodeRequest): Promise<Geoc
 
 export function fetchHoraryChart(event: H3Event, body: HoraryQuestion): Promise<HoraryChart> {
   return callAstro<HoraryChart>(event, '/horary', body)
+}
+
+/**
+ * Today's transits for a natal chart. Pure computation on the Python side —
+ * no GPU, no network, a few hundred milliseconds — so this is safe to call on
+ * the hot path of a user request.
+ */
+export function fetchDailyForecast(event: H3Event, body: DailyRequest): Promise<DailyForecast> {
+  return callAstro<DailyForecast>(event, '/daily', body)
 }

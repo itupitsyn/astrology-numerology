@@ -65,6 +65,33 @@ export function personalYearNumber(birth: BirthDate, targetYear: number): Numero
   return toNumber(sum, /* keepMaster */ false)
 }
 
+/**
+ * Personal Month — the Personal Year carried into one calendar month.
+ * Always reduced to 1-9: like the year, it is a position in a 9-step cycle,
+ * not a standalone number, so master numbers do not apply.
+ */
+export function personalMonthNumber(
+  birth: BirthDate,
+  targetYear: number,
+  targetMonth: number,
+): NumerologyNumber {
+  const sum = personalYearNumber(birth, targetYear).value + reduce(targetMonth)
+  return toNumber(sum, /* keepMaster */ false)
+}
+
+/**
+ * Personal Day — the numerological anchor of a daily forecast. Always 1-9.
+ */
+export function personalDayNumber(
+  birth: BirthDate,
+  targetYear: number,
+  targetMonth: number,
+  targetDay: number,
+): NumerologyNumber {
+  const sum = personalMonthNumber(birth, targetYear, targetMonth).value + reduce(targetDay)
+  return toNumber(sum, /* keepMaster */ false)
+}
+
 function validateBirth(birth: BirthDate): void {
   const { year, month, day } = birth
   if (!Number.isInteger(year) || year < 1 || year > 3000) {
@@ -81,7 +108,12 @@ function validateBirth(birth: BirthDate): void {
 export function computeNumerology(input: NumerologyInput): NumerologyResult {
   validateBirth(input.birth)
 
-  const targetYear = input.targetYear ?? new Date().getUTCFullYear()
+  // A Personal Day belongs to the cycle of its own year, so `targetDate` wins
+  // over `targetYear` when both are given.
+  const targetDate = input.targetDate
+  if (targetDate) validateBirth(targetDate)
+
+  const targetYear = targetDate?.year ?? input.targetYear ?? new Date().getUTCFullYear()
   if (!Number.isInteger(targetYear) || targetYear < 1 || targetYear > 3000) {
     throw new RangeError(`Invalid target year: ${targetYear}`)
   }
@@ -95,6 +127,19 @@ export function computeNumerology(input: NumerologyInput): NumerologyResult {
     birthday,
     personalYear,
     meta: { targetYear, nameAlphabet: 'none' },
+  }
+
+  if (targetDate) {
+    result.personalMonth = personalMonthNumber(input.birth, targetYear, targetDate.month)
+    result.personalDay = personalDayNumber(
+      input.birth,
+      targetYear,
+      targetDate.month,
+      targetDate.day,
+    )
+    const mm = String(targetDate.month).padStart(2, '0')
+    const dd = String(targetDate.day).padStart(2, '0')
+    result.meta.targetDate = `${targetDate.year}-${mm}-${dd}`
   }
 
   const name = input.fullName?.trim()

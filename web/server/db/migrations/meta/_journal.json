@@ -15,6 +15,20 @@
       "when": 1783811117820,
       "tag": "0001_classy_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787658108010,
+      "tag": "0002_conscious_chameleon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787659771129,
+      "tag": "0003_salty_gorilla_man",
+      "breakpoints": true
     }
   ]
 }

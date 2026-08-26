@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ADD COLUMN "birth_time_unknown" boolean DEFAULT false NOT NULL;

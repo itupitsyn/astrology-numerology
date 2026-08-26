@@ -79,6 +79,15 @@ services:
       # LLM endpoint comes from .env / CI secret — not committed. Required.
       NUXT_LLM_BASE_URL: ${NUXT_LLM_BASE_URL:?NUXT_LLM_BASE_URL is required}
       NUXT_LLM_API_KEY: ${NUXT_LLM_API_KEY:-}
+      # One GPU behind the LLM — keep concurrency low and reject rather than
+      # let callers pile up invisibly inside llama.cpp.
+      NUXT_LLM_CONCURRENCY: ${NUXT_LLM_CONCURRENCY:-1}
+      NUXT_LLM_QUEUE_MAX_WAIT_MS: ${NUXT_LLM_QUEUE_MAX_WAIT_MS:-60000}
+      NUXT_LLM_QUEUE_MAX_SIZE: ${NUXT_LLM_QUEUE_MAX_SIZE:-50}
+      # Bot API (/api/bot/*) and Telegram Mini App auth. Both come from .env.
+      NUXT_BOT_API_KEY: ${NUXT_BOT_API_KEY:-}
+      NUXT_TELEGRAM_BOT_TOKEN: ${NUXT_TELEGRAM_BOT_TOKEN:-}
+      NUXT_APP_URL: ${NUXT_APP_URL:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,6 +95,30 @@ services:
         condition: service_started
     ports:
       - "${WEB_PORT:-3000}:3000"
+
+  # Telegram bot. Long polling, so it dials out and needs no published port and
+  # no public address of its own.
+  bot:
+    build: ./bot
+    restart: unless-stopped
+    environment:
+      # The SAME bot as NUXT_TELEGRAM_BOT_TOKEN below — the web app's Mini App
+      # auth verifies initData against that token, so a mismatch means every
+      # /setup request is rejected as an invalid signature.
+      #
+      # Passed through with a soft default rather than `:?`: a hard requirement
+      # here fails *every* compose command, including `docker compose up -d
+      # postgres` for local development. The bot validates its own config at
+      # startup and says exactly what is missing.
+      BOT_TOKEN: ${NUXT_TELEGRAM_BOT_TOKEN:-}
+      # Internal address of the Nuxt layer; never leaves the compose network.
+      API_BASE_URL: http://web:3000
+      BOT_API_KEY: ${NUXT_BOT_API_KEY:-}
+      POLL_INTERVAL_MS: ${BOT_POLL_INTERVAL_MS:-2000}
+      POLL_TIMEOUT_MS: ${BOT_POLL_TIMEOUT_MS:-180000}
+    depends_on:
+      web:
+        condition: service_started
 
 volumes:
   astro-pgdata:

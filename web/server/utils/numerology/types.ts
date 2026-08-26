@@ -17,6 +17,15 @@ export interface NumerologyInput {
   fullName?: string
   /** Year to compute the Personal Year for. Defaults to the current year. */
   targetYear?: number
+  /**
+   * Calendar day to compute the Personal Month and Personal Day for.
+   * Omit for a birth-chart reading; supply it for a daily forecast, where the
+   * Personal Day is the numerological anchor of the day.
+   *
+   * When present, its year overrides `targetYear` — a Personal Day computed
+   * from one year's cycle and another year's date would be meaningless.
+   */
+  targetDate?: BirthDate
 }
 
 /**
@@ -35,6 +44,10 @@ export interface NumerologyResult {
   birthday: NumerologyNumber
   /** Personal Year within the 9-year cycle (always 1-9). */
   personalYear: NumerologyNumber
+  /** Personal Month (always 1-9). Present only when `targetDate` was supplied. */
+  personalMonth?: NumerologyNumber
+  /** Personal Day (always 1-9). Present only when `targetDate` was supplied. */
+  personalDay?: NumerologyNumber
 
   // --- Name-derived (present only when `fullName` is provided) ---
   /** Expression / Destiny — from all letters of the name. */
@@ -48,6 +61,8 @@ export interface NumerologyResult {
 
   meta: {
     targetYear: number
+    /** The day the Personal Month/Day were computed for, as YYYY-MM-DD. */
+    targetDate?: string
     /** Alphabet detected for the name, when a name was supplied. */
     nameAlphabet?: 'latin' | 'cyrillic' | 'mixed' | 'none'
   }

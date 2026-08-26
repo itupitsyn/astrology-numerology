@@ -18,6 +18,20 @@ export interface GeocodeResponse {
   results: GeoLocation[]
 }
 
+/**
+ * A place the user picked from geocoding results.
+ *
+ * The timezone travels with the coordinates deliberately: it is what defines
+ * the user's day, and /api/geocode already knows it, so nothing downstream ever
+ * has to guess.
+ */
+export interface PickedPlace {
+  latitude: number
+  longitude: number
+  timezone: string
+  city: string
+}
+
 // --- Natal chart ---
 export interface CelestialPoint {
   name: string
@@ -191,11 +205,15 @@ export interface NumerologyResult {
   lifePath: NumerologyNumber
   birthday: NumerologyNumber
   personalYear: NumerologyNumber
+  /** Present only for a dated reading (the daily forecast). */
+  personalMonth?: NumerologyNumber
+  /** Present only for a dated reading — the anchor of a daily forecast. */
+  personalDay?: NumerologyNumber
   expression?: NumerologyNumber
   soulUrge?: NumerologyNumber
   personality?: NumerologyNumber
   maturity?: NumerologyNumber
-  meta: { targetYear: number; nameAlphabet?: string }
+  meta: { targetYear: number; targetDate?: string; nameAlphabet?: string }
 }
 
 // --- Interpretation stream ---

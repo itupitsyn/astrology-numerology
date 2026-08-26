@@ -18,43 +18,28 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-import swisseph as swe
 from kerykeion import AstrologicalSubject
 
 import dignities as dig
+from aspects import (
+    CLASSICAL,
+    SWE_ID,
+    AspectHit,
+    Body,
+    bodies_from_swe,
+    find_aspect,
+    lilly_orb,
+    speed_at,
+)
+from aspects import separation as _separation
 from geocoding import resolve_timezone
 
 logger = logging.getLogger("astro-service.horary")
 
-# Swiss Ephemeris ids for the seven classical planets.
-_SWE_ID = {
-    "Sun": swe.SUN,
-    "Moon": swe.MOON,
-    "Mercury": swe.MERCURY,
-    "Venus": swe.VENUS,
-    "Mars": swe.MARS,
-    "Jupiter": swe.JUPITER,
-    "Saturn": swe.SATURN,
-}
-
-# Ptolemaic aspects: name -> exact angle.
-ASPECT_ANGLES = {
-    "conjunction": 0.0,
-    "sextile": 60.0,
-    "square": 90.0,
-    "trine": 120.0,
-    "opposition": 180.0,
-}
-# Which aspects are inherently easy vs hard (for colouring the verdict).
-FAVORABLE_ASPECTS = {"sextile", "trine"}
-HARD_ASPECTS = {"square", "opposition"}
-
-# Lilly's orbs (whole degrees); an aspect is "within orb" when the two bodies
-# are closer than the mean of their two orbs (sum of moieties).
-LILLY_ORB = {
-    "Sun": 15.0, "Moon": 12.0, "Mercury": 7.0, "Venus": 7.0,
-    "Mars": 8.0, "Jupiter": 9.0, "Saturn": 9.0,
-}
+# Swiss Ephemeris ids for the seven classical planets — the only bodies a
+# horary judgment considers. The full table, including the outer planets that
+# only transits use, lives in `aspects.SWE_ID`.
+_SWE_ID = {name: SWE_ID[name] for name in CLASSICAL}
 
 # Via combusta: 15 Libra .. 15 Scorpio, in absolute ecliptic longitude.
 _VIA_COMBUSTA = (195.0, 225.0)
@@ -68,131 +53,10 @@ _UNDER_BEAMS_ORB = 15.0
 # The two malefics, for besiegement.
 _MALEFICS = ("Mars", "Saturn")
 
-# Numeric step (days) used to detect whether an aspect is applying.
-_DT = 0.02
-
 
 def _moiety_sum(p1: str, p2: str) -> float:
-    return (LILLY_ORB[p1] + LILLY_ORB[p2]) / 2.0
-
-
-def _norm360(x: float) -> float:
-    return x % 360.0
-
-
-def _separation(lon1: float, lon2: float) -> float:
-    """Angular separation in [0, 180]."""
-    d = abs(lon1 - lon2) % 360.0
-    return d if d <= 180.0 else 360.0 - d
-
-
-@dataclass
-class Body:
-    """A moving point: ecliptic longitude and daily motion."""
-
-    name: str
-    lon: float
-    speed: float  # degrees/day; negative = retrograde
-
-    @property
-    def retrograde(self) -> bool:
-        return self.speed < 0
-
-    def lon_at(self, days: float) -> float:
-        return _norm360(self.lon + self.speed * days)
-
-    def sign_num(self) -> int:
-        return dig.sign_num_of(self.lon)
-
-    def exits_sign_within(self, days: float) -> bool:
-        """True if the body leaves its current sign within `days` (>0)."""
-        if days <= 0:
-            return False
-        deg = dig.degree_in_sign(self.lon)
-        travel = self.speed * days
-        # Direct motion crosses the 30 boundary; retrograde crosses 0.
-        if self.speed >= 0:
-            return deg + travel >= 30.0
-        return deg + travel < 0.0
-
-
-@dataclass
-class AspectHit:
-    """A perfecting aspect between two bodies."""
-
-    p1: str
-    p2: str
-    aspect: str
-    orb: float                 # current orb from exact, degrees
-    applying: bool
-    days_to_perfect: Optional[float]      # None if separating
-    degrees_to_perfect: Optional[float]
-    perfects_before_sign_exit: bool
-    favorable: bool
-
-    def as_dict(self) -> dict:
-        return {
-            "p1": self.p1,
-            "p2": self.p2,
-            "aspect": self.aspect,
-            "orb": round(self.orb, 3),
-            "applying": self.applying,
-            "days_to_perfect": None if self.days_to_perfect is None else round(self.days_to_perfect, 3),
-            "degrees_to_perfect": None if self.degrees_to_perfect is None else round(self.degrees_to_perfect, 3),
-            "perfects_before_sign_exit": self.perfects_before_sign_exit,
-            "favorable": self.favorable,
-        }
-
-
-def find_aspect(b1: Body, b2: Body) -> Optional[AspectHit]:
-    """Return the operative aspect between two bodies, if any is within orb.
-
-    Applying/separating is determined numerically from the two bodies' motion;
-    for an applying aspect we also compute time/degrees to exact and whether it
-    perfects before either body leaves its sign.
-    """
-    moiety = _moiety_sum(b1.name, b2.name)
-    sep_now = _separation(b1.lon, b2.lon)
-
-    best: Optional[tuple[str, float]] = None  # (aspect, orb)
-    for name, angle in ASPECT_ANGLES.items():
-        orb = abs(sep_now - angle)
-        if orb <= moiety and (best is None or orb < best[1]):
-            best = (name, orb)
-    if best is None:
-        return None
-
-    aspect, orb = best
-    angle = ASPECT_ANGLES[aspect]
-
-    # Numeric derivative of the orb to classify applying vs separating.
-    sep_next = _separation(b1.lon_at(_DT), b2.lon_at(_DT))
-    orb_next = abs(sep_next - angle)
-    applying = orb_next < orb
-
-    days: Optional[float] = None
-    degs: Optional[float] = None
-    perfects_before_exit = False
-    if applying and orb > 1e-9:
-        rate = (orb - orb_next) / _DT  # degrees/day the orb closes
-        if rate > 1e-9:
-            days = orb / rate
-            degs = orb
-            perfects_before_exit = not (
-                b1.exits_sign_within(days) or b2.exits_sign_within(days)
-            )
-
-    return AspectHit(
-        p1=b1.name,
-        p2=b2.name,
-        aspect=aspect,
-        orb=orb,
-        applying=applying,
-        days_to_perfect=days,
-        degrees_to_perfect=degs,
-        perfects_before_sign_exit=perfects_before_exit,
-        favorable=aspect in FAVORABLE_ASPECTS,
-    )
+    """Lilly's orb between two planets. Aspect-independent, hence the dummy."""
+    return lilly_orb(p1, p2, "conjunction")
 
 
 # --------------------------------------------------------------------------- #
@@ -348,12 +212,6 @@ def sun_relation(body: Body, sun: Body) -> Optional[str]:
     if sep <= _UNDER_BEAMS_ORB:
         return "under_beams"
     return None
-
-
-def speed_at(planet: str, julian_day: float, days: float) -> float:
-    """Longitudinal speed (deg/day) of a classical planet at jd + days."""
-    res = swe.calc_ut(julian_day + days, _SWE_ID[planet], swe.FLG_SWIEPH | swe.FLG_SPEED)
-    return res[0][3]
 
 
 def _refranates(sig: Body, days_to_perfect: Optional[float], julian_day: float) -> bool:
@@ -569,13 +427,8 @@ class HoraryComputation:
 
 
 def _bodies_from_swe(julian_day: float) -> dict[str, Body]:
-    bodies: dict[str, Body] = {}
-    flags = swe.FLG_SWIEPH | swe.FLG_SPEED
-    for name, pid in _SWE_ID.items():
-        res = swe.calc_ut(julian_day, pid, flags)
-        lon, _lat, _dist, slon, *_ = res[0]
-        bodies[name] = Body(name=name, lon=_norm360(lon), speed=slon)
-    return bodies
+    """The seven classical planets at a Julian day."""
+    return bodies_from_swe(julian_day, CLASSICAL)
 
 
 def _house_cusp_sign_num(subject: AstrologicalSubject, house_num: int) -> int:

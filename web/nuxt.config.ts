@@ -29,6 +29,28 @@ export default defineNuxtConfig({
     llm: {
       baseUrl: '',
       apiKey: '', // sent as Bearer if set
+
+      // Outbound budget. The model runs on ONE GPU, so more than a couple of
+      // concurrent generations just makes everybody slower and then time out
+      // together. Requests beyond the limit queue; a request that waits longer
+      // than queueMaxWaitMs is rejected as busy rather than left hanging.
+      // Override with NUXT_LLM_CONCURRENCY / NUXT_LLM_QUEUE_MAX_WAIT_MS.
+      concurrency: 1,
+      queueMaxWaitMs: 60_000,
+      queueMaxSize: 50,
     },
+
+    // Shared secret for the bot's server-to-server calls (/api/bot/*). Required
+    // for those routes: they can start a GPU job, so they are not left open.
+    // Set NUXT_BOT_API_KEY.
+    botApiKey: '',
+
+    // Telegram bot token. Used only to verify Mini App `initData` signatures,
+    // which is how /api/profile learns who is calling. Set NUXT_TELEGRAM_BOT_TOKEN.
+    telegramBotToken: '',
+
+    // Public origin of this app, used to build the setup link the bot sends a
+    // user who has no profile yet. Set NUXT_APP_URL.
+    appUrl: 'http://localhost:3000',
   },
 })

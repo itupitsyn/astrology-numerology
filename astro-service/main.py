@@ -4,6 +4,8 @@ Endpoints:
   GET  /health            — liveness + Nominatim reachability
   POST /geocode           — free-form place -> coordinates + timezone (local Nominatim)
   POST /natal             — birth data -> full natal chart (kerykeion / Swiss Ephemeris)
+  POST /horary            — a question at a moment -> cast chart + deterministic verdict
+  POST /daily             — natal chart + a local day -> ranked transits and events
 """
 
 from __future__ import annotations
@@ -25,6 +27,8 @@ from horary import HoraryComputation, _house_number, compute_horary
 from models import (
     AspectHitInfo,
     BirthData,
+    DailyForecast,
+    DailyRequest,
     DignityInfo,
     GeocodeRequest,
     GeocodeResponse,
@@ -38,6 +42,7 @@ from models import (
     ReceptionInfo,
     Significator,
 )
+from transits import compute_daily
 
 logging.basicConfig(level=get_settings().log_level)
 logger = logging.getLogger("astro-service")
@@ -213,6 +218,34 @@ async def horary(payload: HoraryQuestion) -> HoraryChart:
     except Exception as exc:  # noqa: BLE001 - surface calc errors as 400 to the caller
         logger.exception("Horary computation failed")
         raise HTTPException(status_code=400, detail=f"Horary computation failed: {exc}") from exc
+
+
+@app.post("/daily", response_model=DailyForecast)
+async def daily(payload: DailyRequest) -> DailyForecast:
+    """Today's sky, and what it does to one natal chart.
+
+    Pure computation — no GPU, no network, a few milliseconds. The caller can
+    answer a user with `highlights` immediately and only then, optionally, hand
+    the same data to an LLM for prose.
+    """
+    place = payload.place
+    try:
+        result = compute_daily(
+            payload.birth,
+            date=payload.date,
+            latitude=place.latitude if place else None,
+            longitude=place.longitude if place else None,
+            timezone=place.timezone if place else None,
+            reference_hour=payload.reference_hour,
+            reference_minute=payload.reference_minute,
+            max_highlights=payload.max_highlights,
+            houses_known=payload.houses_known,
+        )
+    except Exception as exc:  # noqa: BLE001 - surface calc errors as 400 to the caller
+        logger.exception("Daily forecast computation failed")
+        raise HTTPException(status_code=400, detail=f"Daily computation failed: {exc}") from exc
+
+    return DailyForecast(**vars(result))
 
 
 if __name__ == "__main__":

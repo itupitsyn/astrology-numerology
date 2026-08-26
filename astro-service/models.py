@@ -235,6 +235,156 @@ class HoraryChart(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Daily transits
+# --------------------------------------------------------------------------- #
+class PlaceRef(BaseModel):
+    """Where the person is *now* — not where they were born."""
+
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    timezone: Optional[str] = Field(None, description="IANA timezone. If omitted, resolved from coordinates.")
+    city: Optional[str] = Field(None, description="Optional place label (cosmetic).")
+
+
+class DailyRequest(BaseModel):
+    """Input for a daily forecast.
+
+    The day is always the *local* day at `place` — a user in Vladivostok must
+    not be handed yesterday's sky because the server is in UTC. Omit `date` to
+    mean "today there".
+    """
+
+    birth: BirthData
+    place: Optional[PlaceRef] = Field(
+        None,
+        description="Current location; drives the day boundary and local event times. Defaults to the birth place.",
+    )
+    date: Optional[str] = Field(
+        None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Local calendar date (YYYY-MM-DD). Defaults to today at `place`.",
+    )
+    reference_hour: int = Field(12, ge=0, le=23, description="Hour the snapshot positions are taken at.")
+    reference_minute: int = Field(0, ge=0, le=59)
+    max_highlights: int = Field(5, ge=1, le=20, description="How many ranked findings to return.")
+    houses_known: bool = Field(
+        True,
+        description=(
+            "False when the birth time is unknown. Houses and the angles sweep the whole "
+            "zodiac every 24 hours, so without a birth time they are meaningless rather "
+            "than imprecise: they are then omitted instead of computed from a placeholder."
+        ),
+    )
+
+
+class TransitPosition(BaseModel):
+    planet: str
+    sign: str
+    sign_num: int
+    sign_ru: str
+    position: float = Field(..., description="Degrees within the sign (0..30).")
+    abs_position: float
+    retrograde: bool
+    speed: float = Field(..., description="Daily motion in longitude, degrees/day.")
+    natal_house: Optional[int] = Field(
+        None,
+        description="Natal house this transiting body falls in. Null when the birth time is unknown.",
+    )
+
+
+class DailyAspect(BaseModel):
+    """A transit aspecting a natal point, or another transiting body."""
+
+    transit: str
+    natal: Optional[str] = Field(None, description="Natal point aspected (transit->natal only).")
+    other: Optional[str] = Field(None, description="Other transiting body (sky aspects only).")
+    aspect: str
+    orb: float
+    applying: bool
+    favorable: bool
+    retrograde: bool = False
+    layer: str = Field(..., description="'today' (Moon..Mars) or 'background' (Jupiter and beyond).")
+    exact_local: Optional[str] = Field(None, description="Local time the aspect perfects, if it does so today.")
+    score: float = Field(..., description="Deterministic relevance rank for the day.")
+
+
+class DailyEvent(BaseModel):
+    """A discrete moment inside the 24 hours (ingress, station, lunar phase)."""
+
+    kind: str = Field(..., description="'ingress' | 'station' | 'moon_phase'.")
+    time_local: str
+    planet: Optional[str] = None
+    from_sign: Optional[str] = None
+    to_sign: Optional[str] = None
+    retrograde: Optional[bool] = None
+    phase: Optional[str] = None
+    sign: Optional[str] = None
+
+
+class VoidOfCourse(BaseModel):
+    start_local: str
+    end_local: str
+    starts_before_day: bool = Field(..., description="The period began before this local day.")
+    ends_after_day: bool = Field(..., description="The period runs past this local day.")
+
+
+class MoonToday(BaseModel):
+    sign: str
+    sign_num: int
+    sign_ru: str
+    position: float
+    abs_position: float
+    phase_angle: float = Field(..., description="Moon minus Sun, 0..360.")
+    phase_name: str
+    illumination: float = Field(..., description="Illuminated fraction of the disc, 0..1.")
+    waxing: bool
+    sign_at_day_start: str
+    sign_at_day_end: str
+    natal_house: Optional[int] = Field(
+        None, description="Null when the birth time is unknown."
+    )
+    speed: float
+    void_of_course: list[VoidOfCourse] = Field(default_factory=list)
+
+
+class Highlight(BaseModel):
+    """One ranked thing worth saying about the day.
+
+    This is the part a bot can send instantly, before any LLM has run: it is
+    already prioritised, already phrased in Russian, and costs no GPU.
+    """
+
+    kind: str = Field(..., description="'natal_aspect' | 'sky_aspect' | 'event'.")
+    layer: str
+    score: float
+    title: str
+    detail: str
+    time_local: Optional[str] = None
+    data: dict = Field(default_factory=dict, description="Machine-readable source record.")
+
+
+class DailyForecast(BaseModel):
+    date: str
+    timezone: str
+    latitude: float
+    longitude: float
+    reference_local: str
+    reference_utc: str
+    houses_known: bool = Field(
+        ...,
+        description="False when the birth time was unknown: no houses, no Ascendant/MC.",
+    )
+
+    moon: MoonToday
+    positions: list[TransitPosition]
+    retrogrades: list[str]
+    natal_aspects: list[DailyAspect] = Field(..., description="Transits to the natal chart, ranked.")
+    sky_aspects: list[DailyAspect] = Field(..., description="Transit-to-transit aspects — the general weather.")
+    events: list[DailyEvent]
+    highlights: list[Highlight] = Field(..., description="The ranked shortlist to actually show.")
+
+
+# --------------------------------------------------------------------------- #
 # Common
 # --------------------------------------------------------------------------- #
 class HealthResponse(BaseModel):
