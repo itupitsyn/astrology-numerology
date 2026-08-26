@@ -8,9 +8,35 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Test
+  # The three services are tested separately and in parallel: they share no
+  # toolchain, and a failure should point straight at the one that broke.
+  test-web:
+    name: Test web
     runs-on: ubuntu-latest
+
+    # A real Postgres, because the slot-claiming tests check a race that only
+    # the database can settle: a unique index and an atomic UPDATE are what stop
+    # two taps from starting two GPU jobs. Without this they would skip, and the
+    # one guarantee most worth protecting would go untested in CI.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: astro
+          POSTGRES_PASSWORD: astro
+          POSTGRES_DB: astro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U astro -d astro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NUXT_DATABASE_URL: postgres://astro:astro@localhost:5432/astro
+      TEST_DATABASE_URL: postgres://astro:astro@localhost:5432/astro
+
     steps:
       - uses: actions/checkout@v4
 
@@ -22,13 +48,59 @@ jobs:
         working-directory: web
         run: bun install --frozen-lockfile
 
-      - name: Unit tests (numerology)
+      - name: Apply migrations
+        working-directory: web
+        run: bun run db:migrate
+
+      - name: Unit and slot-claiming tests
         working-directory: web
         run: bun run test
 
+  test-bot:
+    name: Test bot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        working-directory: bot
+        run: bun install --frozen-lockfile
+
+      - name: Unit tests
+        working-directory: bot
+        run: bun run test
+
+  test-astro:
+    name: Test astro-service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: astro-service/requirements.txt
+
+      - name: Install deps
+        working-directory: astro-service
+        # pytest is not in requirements.txt on purpose — the suites also run
+        # standalone — so it is added just for CI.
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Ephemeris, horary and transit tests
+        working-directory: astro-service
+        run: python -m pytest -q
+
   deploy:
     name: Deploy to VDS
-    needs: test
+    needs: [test-web, test-bot, test-astro]
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -37,20 +109,40 @@ jobs:
         env:
           NUXT_LLM_BASE_URL: ${{ secrets.NUXT_LLM_BASE_URL }}
           NUXT_LLM_API_KEY: ${{ secrets.NUXT_LLM_API_KEY }}
+          # Telegram bot + Mini App. The token is used by BOTH the bot (to talk
+          # to Telegram) and the web layer (to verify Mini App initData), so it
+          # has to be the same bot in both places — compose derives both from
+          # this one value.
+          NUXT_TELEGRAM_BOT_TOKEN: ${{ secrets.NUXT_TELEGRAM_BOT_TOKEN }}
+          NUXT_BOT_API_KEY: ${{ secrets.NUXT_BOT_API_KEY }}
+          NUXT_APP_URL: ${{ secrets.NUXT_APP_URL }}
         with:
           host: ${{ secrets.VDS_HOST }}
           username: ${{ secrets.VDS_USER }}
           password: ${{ secrets.VDS_PASSWORD }}
           port: ${{ secrets.VDS_PORT || 22 }}
-          # Forward the LLM secret into the remote shell; docker compose reads it
-          # from the environment (no endpoint is committed to the repo).
-          envs: NUXT_LLM_BASE_URL,NUXT_LLM_API_KEY
+          # Forward the secrets into the remote shell; docker compose reads them
+          # from the environment (nothing sensitive is committed to the repo).
+          envs: NUXT_LLM_BASE_URL,NUXT_LLM_API_KEY,NUXT_TELEGRAM_BOT_TOKEN,NUXT_BOT_API_KEY,NUXT_APP_URL
           script: |
             set -e
             cd ${{ secrets.DEPLOY_PATH }}
+
+            # Fail here rather than bringing up a container that cannot work.
+            # An unset bot token gives a crash-looping bot AND a web layer that
+            # rejects every Mini App request as an invalid signature — which
+            # looks like a code bug, not a missing secret.
+            : "${NUXT_TELEGRAM_BOT_TOKEN:?missing GitHub secret NUXT_TELEGRAM_BOT_TOKEN}"
+            : "${NUXT_BOT_API_KEY:?missing GitHub secret NUXT_BOT_API_KEY}"
+            : "${NUXT_APP_URL:?missing GitHub secret NUXT_APP_URL (public https origin)}"
+
             git pull --ff-only
             export NUXT_LLM_BASE_URL NUXT_LLM_API_KEY
+            export NUXT_TELEGRAM_BOT_TOKEN NUXT_BOT_API_KEY NUXT_APP_URL
+
             docker compose build
+            # Schema first: the web layer answers 500 on a database it can reach
+            # but whose migrations have not been applied.
             docker compose run --rm migrate
             docker compose up -d
             docker image prune -f
