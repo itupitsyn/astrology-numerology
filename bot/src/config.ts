@@ -38,6 +38,19 @@ export const config = {
 
   /** Request timeout when calling the Nuxt layer. */
   apiTimeoutMs: number('API_TIMEOUT_MS', 30_000),
+
+  /**
+   * Proxy for reaching api.telegram.org, where Telegram is blocked.
+   *
+   * Applied ONLY to Telegram traffic, never to the Nuxt layer. That distinction
+   * is the whole point of configuring it here instead of through a global
+   * `HTTPS_PROXY`: the API lives at an internal address, and sending internal
+   * requests through an external proxy makes them hang until they time out —
+   * which, for an inline query, means the picker spins forever.
+   *
+   * Example: http://user:pass@proxy.example.com:3128 or socks5://127.0.0.1:1080
+   */
+  telegramProxyUrl: process.env.TELEGRAM_PROXY_URL?.trim() || undefined,
 }
 
 export type Config = typeof config

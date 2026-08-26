@@ -16,7 +16,15 @@ import { promptForProfile, sendDaily } from './daily'
 import { forgetInlineCache, handleInlineQuery } from './inline'
 import { ratedKeyboard, settingsKeyboard, todayKeyboard } from './keyboards'
 
-const bot = new Bot(config.botToken)
+// The proxy, when set, wraps ONLY calls to api.telegram.org. Requests to the
+// Nuxt layer keep going out directly — see `telegramProxyUrl` in config.ts for
+// why that separation matters.
+const bot = new Bot(
+  config.botToken,
+  config.telegramProxyUrl
+    ? { client: { baseFetchConfig: { proxy: config.telegramProxyUrl } } }
+    : undefined,
+)
 
 const HELP = [
   'Что я умею:',
@@ -123,7 +131,10 @@ async function main() {
   ])
 
   const me = await bot.api.getMe()
-  console.log(`[bot] started as @${me.username}, API: ${config.apiBaseUrl}`)
+  console.log(
+    `[bot] started as @${me.username}, API: ${config.apiBaseUrl}` +
+      (config.telegramProxyUrl ? ', Telegram via proxy' : ''),
+  )
 
   // Docker sends SIGTERM; finish the in-flight update rather than dropping it.
   const stop = () => {
@@ -138,5 +149,12 @@ async function main() {
 
 main().catch((err) => {
   console.error('[bot] failed to start:', err)
+  if (!config.telegramProxyUrl) {
+    console.error(
+      '\n  Could not reach api.telegram.org?\n' +
+        '  Where Telegram is blocked, set TELEGRAM_PROXY_URL — it is applied to\n' +
+        '  Telegram traffic only, and leaves calls to the API layer direct.\n',
+    )
+  }
   process.exit(1)
 })

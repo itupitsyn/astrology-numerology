@@ -1,9 +1,15 @@
 # Full stack for the astro-numerology app.
 #
 # Local dev:  docker compose up -d postgres      (run web via `bun run dev`)
-# Deploy:     docker compose build
+# Deploy:     docker compose --profile tools build
 #             docker compose run --rm migrate     (apply DB migrations)
 #             docker compose up -d
+#
+# The `--profile tools` is load-bearing: `migrate` sits in that profile, so a
+# plain `docker compose build` skips it, and `run` only builds an image that is
+# missing. A stale migrate image from an earlier deploy therefore applies the
+# migrations it was built with, reports success, and leaves the newer ones
+# unapplied — a green deploy on top of a half-migrated database.
 #
 # External dependencies NOT in this compose: the Qwen LLM (separate llama.cpp
 # server) and geocoding (public Nominatim). Configure via the env vars below.
@@ -116,6 +122,15 @@ services:
       BOT_API_KEY: ${NUXT_BOT_API_KEY:-}
       POLL_INTERVAL_MS: ${BOT_POLL_INTERVAL_MS:-2000}
       POLL_TIMEOUT_MS: ${BOT_POLL_TIMEOUT_MS:-180000}
+      # Proxy for api.telegram.org where Telegram is blocked. Applied to
+      # Telegram traffic ONLY — never to API_BASE_URL above.
+      TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
+      # Belt and braces: if the host exports HTTP_PROXY/HTTPS_PROXY, Bun's fetch
+      # honours them and would send the INTERNAL API calls through the proxy
+      # too. Those then hang until they time out, which for an inline query
+      # means the picker spins and never resolves.
+      NO_PROXY: web,localhost,127.0.0.1
+      no_proxy: web,localhost,127.0.0.1
     depends_on:
       web:
         condition: service_started

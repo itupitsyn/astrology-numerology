@@ -97,6 +97,24 @@ generation slot, so a bare "hello" would quietly cost a model run.
 | `POLL_INTERVAL_MS` | no | Default 2000 |
 | `POLL_TIMEOUT_MS` | no | Default 180000 |
 | `API_TIMEOUT_MS` | no | Default 30000 |
+| `TELEGRAM_PROXY_URL` | no | Proxy for api.telegram.org where Telegram is blocked |
+
+### Proxying Telegram
+
+Where Telegram is blocked, set `TELEGRAM_PROXY_URL`
+(`http://user:pass@host:3128` or `socks5://host:1080`). It is applied to
+**Telegram traffic only**, via grammY's `baseFetchConfig`.
+
+Do **not** reach for a global `HTTP_PROXY`/`HTTPS_PROXY` instead. The bot also
+calls the web layer at an internal address (`http://web:3000`), and a global
+proxy captures those too: they then hang until they time out. For a command
+that shows up as a slow reply, but for an **inline query** it is invisible —
+Telegram closes the window in seconds, so the picker just spins forever with no
+error anywhere the user can see. The compose file sets `NO_PROXY` for the bot as
+a second line of defence.
+
+If the bot cannot reach Telegram at all it fails at startup on `getMe`, with a
+hint about this variable — so nothing works, not just inline.
 
 ## Run
 

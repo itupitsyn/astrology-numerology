@@ -140,9 +140,17 @@ jobs:
             export NUXT_LLM_BASE_URL NUXT_LLM_API_KEY
             export NUXT_TELEGRAM_BOT_TOKEN NUXT_BOT_API_KEY NUXT_APP_URL
 
-            docker compose build
+            # `--profile tools` matters: the migrate service lives in that
+            # profile, so a plain `docker compose build` skips it. `run` only
+            # builds an image that is MISSING, so the stale migrate image from
+            # an earlier deploy gets reused — it then applies the migrations it
+            # was built with, reports success, and silently leaves newer ones
+            # unapplied. Deploy stays green while the app answers 500.
+            docker compose --profile tools build
+
             # Schema first: the web layer answers 500 on a database it can reach
             # but whose migrations have not been applied.
             docker compose run --rm migrate
+
             docker compose up -d
             docker image prune -f

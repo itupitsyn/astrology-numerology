@@ -31,7 +31,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = config.apiTimeoutMs,
+): Promise<T> {
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
     ...init,
     headers: {
@@ -39,7 +43,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       'X-API-Key': config.apiKey,
       ...init.headers,
     },
-    signal: AbortSignal.timeout(config.apiTimeoutMs),
+    signal: AbortSignal.timeout(timeoutMs),
   })
 
   if (response.status === 204) return null as T
@@ -99,12 +103,14 @@ export function fetchProfileStatus(telegramId: number): Promise<ProfileStatus> {
  */
 export function fetchDaily(
   telegramId: number,
-  options: { generate?: boolean } = {},
+  options: { generate?: boolean; timeoutMs?: number } = {},
 ): Promise<DailyResponse> {
-  return request<DailyResponse>('/api/bot/daily', {
-    method: 'POST',
-    body: JSON.stringify({ telegramId, ...options }),
-  })
+  const { timeoutMs, ...body } = options
+  return request<DailyResponse>(
+    '/api/bot/daily',
+    { method: 'POST', body: JSON.stringify({ telegramId, ...body }) },
+    timeoutMs,
+  )
 }
 
 /** Cheap indexed read — safe to call every couple of seconds. */

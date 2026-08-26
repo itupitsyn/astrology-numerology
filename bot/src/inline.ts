@@ -36,6 +36,14 @@ const MEMO_TTL_MS = 120_000
 /** How long Telegram may cache a result. Personal, so never shared across users. */
 const TELEGRAM_CACHE_SECONDS = 30
 
+/**
+ * Request budget for an inline query — much tighter than the bot's normal
+ * timeout. Telegram closes the inline window in seconds, and an answer that
+ * misses it is worse than a fast failure: the picker spins with nothing in it
+ * and the user never learns why.
+ */
+const INLINE_API_TIMEOUT_MS = 4_000
+
 interface Memo {
   reading: DailyResponse
   expires: number
@@ -76,46 +84,69 @@ function article(id: string, title: string, html: string): InlineQueryResult {
   }
 }
 
+/**
+ * Answer with nothing to send, but a visible button into the bot.
+ *
+ * An empty result list on its own is indistinguishable, in the client, from
+ * "still loading" — the picker just sits there. The button is what turns a
+ * dead end into something the user can act on.
+ */
+function answerWithButton(ctx: Context, text: string): Promise<true> {
+  return ctx.answerInlineQuery([], {
+    is_personal: true,
+    cache_time: 0,
+    button: { text, start_parameter: 'setup' },
+  })
+}
+
 export async function handleInlineQuery(ctx: Context): Promise<void> {
   const telegramId = ctx.from?.id
   if (!telegramId) return
 
-  let reading = recall(telegramId)
+  try {
+    let reading = recall(telegramId)
 
-  if (!reading) {
-    try {
-      // generate:false — a keystroke must not decide who gets the GPU.
-      reading = await fetchDaily(telegramId, { generate: false })
-      remember(telegramId, reading)
-    } catch (err) {
-      if (err instanceof NeedsProfileError) {
-        // No data yet: offer nothing to send, and a button into the bot.
-        await ctx.answerInlineQuery([], {
-          is_personal: true,
-          cache_time: 0,
-          button: { text: 'Заполнить данные', start_parameter: 'setup' },
+    if (!reading) {
+      try {
+        // generate:false — a keystroke must not decide who gets the GPU.
+        // The short timeout matters more than the answer: Telegram closes the
+        // inline window in seconds, and an answer that arrives after that
+        // leaves the user watching a spinner that never resolves.
+        reading = await fetchDaily(telegramId, {
+          generate: false,
+          timeoutMs: INLINE_API_TIMEOUT_MS,
         })
+        remember(telegramId, reading)
+      } catch (err) {
+        if (err instanceof NeedsProfileError) {
+          await answerWithButton(ctx, 'Заполнить данные')
+          return
+        }
+        console.error('[inline] request failed', err)
+        await answerWithButton(ctx, 'Прогноз недоступен — открыть бота')
         return
       }
-      console.error('[inline] failed', err)
-      await ctx.answerInlineQuery([], { is_personal: true, cache_time: 0 })
-      return
     }
+
+    const brief = renderInlineBrief(reading)
+    const main = renderInlineMain(reading)
+
+    const results: InlineQueryResult[] = [article('brief', '✦ Кратко — одна строка', brief)]
+
+    // Only offer the longer variant when it actually says more.
+    if (main !== brief) {
+      results.push(article('main', '✦ Главное за день', main))
+    }
+
+    await ctx.answerInlineQuery(results, {
+      // Without this, Telegram may serve one user's forecast to another.
+      is_personal: true,
+      cache_time: TELEGRAM_CACHE_SECONDS,
+    })
+  } catch (err) {
+    // Every path out of here must answer. An inline query left unanswered is
+    // the one failure the user cannot even see — the picker spins forever.
+    console.error('[inline] unhandled', err)
+    await answerWithButton(ctx, 'Прогноз недоступен — открыть бота').catch(() => {})
   }
-
-  const brief = renderInlineBrief(reading)
-  const main = renderInlineMain(reading)
-
-  const results: InlineQueryResult[] = [article('brief', '✦ Кратко — одна строка', brief)]
-
-  // Only offer the longer variant when it actually says more.
-  if (main !== brief) {
-    results.push(article('main', '✦ Главное за день', main))
-  }
-
-  await ctx.answerInlineQuery(results, {
-    // Without this, Telegram may serve one user's forecast to another.
-    is_personal: true,
-    cache_time: TELEGRAM_CACHE_SECONDS,
-  })
 }
