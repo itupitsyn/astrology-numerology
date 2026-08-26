@@ -104,6 +104,33 @@ describe('renderFacts', () => {
     expect(html).toContain('<b>14:04</b> · Меркурий переходит в Деву')
   })
 
+  it('lists the day in time order, not by score', () => {
+    // The API ranks by importance; a list headed by clock times has to read as
+    // a schedule, or 07:00 → 03:47 → 01:47 looks broken.
+    const base = reading()
+    base.forecast!.highlights = [
+      { kind: 'natal_aspect', layer: 'today', score: 9, title: 'Поздний', detail: '', time_local: '2026-08-26T19:37' },
+      { kind: 'natal_aspect', layer: 'today', score: 5, title: 'Ранний', detail: '', time_local: '2026-08-26T01:47' },
+      { kind: 'natal_aspect', layer: 'today', score: 7, title: 'Дневной', detail: '', time_local: '2026-08-26T12:59' },
+    ]
+    const times = renderFacts(base)
+      .split('\n')
+      .filter((l) => l.startsWith('•'))
+      .map((l) => l.slice(l.indexOf('<b>') + 3, l.indexOf('</b>')))
+    expect(times).toEqual(['01:47', '12:59', '19:37'])
+  })
+
+  it('puts all-day findings after the timed ones', () => {
+    const base = reading()
+    base.forecast!.highlights = [
+      { kind: 'natal_aspect', layer: 'today', score: 9, title: 'Весь день', detail: '', time_local: null },
+      { kind: 'natal_aspect', layer: 'today', score: 1, title: 'В восемь', detail: '', time_local: '2026-08-26T08:00' },
+    ]
+    const bullets = renderFacts(base).split('\n').filter((l) => l.startsWith('•'))
+    expect(bullets[0]).toContain('В восемь')
+    expect(bullets[1]).toContain('Весь день')
+  })
+
   it('names retrograde planets in Russian', () => {
     expect(renderFacts(reading())).toContain('Ретроградны: Сатурн, Нептун')
   })
@@ -237,6 +264,23 @@ describe('renderInlineMain', () => {
     const html = renderInlineMain(reading())
     expect(html).toContain('11:53')
     expect(stripTags(html).length).toBeLessThan(400)
+  })
+
+  it('selects by score but shows them in time order', () => {
+    // Both halves matter: the low-scoring 02:00 item must not crowd out a
+    // high-scoring one, and what survives must still read forwards.
+    const base = reading()
+    base.forecast!.highlights = [
+      { kind: 'natal_aspect', layer: 'today', score: 9, title: 'Важное вечером', detail: '', time_local: '2026-08-26T20:00' },
+      { kind: 'natal_aspect', layer: 'today', score: 8, title: 'Важное днём', detail: '', time_local: '2026-08-26T13:00' },
+      { kind: 'natal_aspect', layer: 'today', score: 7, title: 'Важное утром', detail: '', time_local: '2026-08-26T09:00' },
+      { kind: 'natal_aspect', layer: 'today', score: 0.1, title: 'Мелочь ночью', detail: '', time_local: '2026-08-26T02:00' },
+    ]
+    const bullets = renderInlineMain(base).split('\n').filter((l) => l.startsWith('•'))
+    expect(bullets).toHaveLength(3)
+    expect(bullets.join('\n')).not.toContain('Мелочь ночью')
+    expect(bullets[0]).toContain('Важное утром')
+    expect(bullets[2]).toContain('Важное вечером')
   })
 
   it('caps the number of findings', () => {

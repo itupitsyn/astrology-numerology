@@ -16,7 +16,7 @@ import type { ChatMessage } from './client'
  * Bump whenever the system prompt or the brief's formatting changes
  * meaningfully. Stored with each reading so A/B comparisons stay honest.
  */
-export const DAILY_PROMPT_VERSION = 'daily-v2-birthtime'
+export const DAILY_PROMPT_VERSION = 'daily-v3-chronological'
 
 const PLANET_RU: Record<string, string> = {
   Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
@@ -61,6 +61,25 @@ function highlightLine(item: Highlight): string {
   return `  • ${item.title}${when} — ${item.detail}`
 }
 
+/**
+ * Chronological, so the brief matches the list the user is looking at.
+ *
+ * Score still decides *which* findings appear — the selection is the whole
+ * point of the ranking engine. Only the order is by clock, so the model narrates
+ * the day forwards instead of by importance. Undated items apply all day and
+ * come last.
+ */
+function byTime(items: Highlight[]): Highlight[] {
+  return [...items].sort((a, b) => {
+    const left = a.time_local ?? ''
+    const right = b.time_local ?? ''
+    if (left && right) return left < right ? -1 : left > right ? 1 : 0
+    if (left) return -1
+    if (right) return 1
+    return b.score - a.score
+  })
+}
+
 function eventsBlock(forecast: DailyForecast): string | null {
   if (forecast.events.length === 0) return null
   const lines = forecast.events.map((event) => {
@@ -93,14 +112,14 @@ const SYSTEM_PROMPT = `Ты — опытный астролог с тёплым,
 
 Правила:
 - Опирайся ТОЛЬКО на приведённые данные. Не выдумывай аспекты, положения планет, события и числа, которых нет в брифе.
-- Данные уже отранжированы по важности. Главное — блок «ГЛАВНОЕ ЗА ДЕНЬ»: разбери именно его, в том же порядке. Остальные блоки используй как контекст.
+- Главное — блок «ГЛАВНОЕ ЗА ДЕНЬ». В него уже отобрано самое значимое за сутки, и пункты идут ПО ВРЕМЕНИ. Веди рассказ по ходу дня, в том же порядке; не переставляй пункты и не расставляй их по важности за читателя. Остальные блоки используй как контекст.
 - Различай два слоя. Пометка «фон» — это медленный транзит, который держится неделями и месяцами: упомяни его максимум одной фразой как общий период, НИКОГДА не подавай как новость дня. Всё остальное — собственно сегодняшний день.
 - Обязательно называй КОНКРЕТНОЕ ВРЕМЯ, когда оно указано в квадратных скобках. «Ближе к 14:00» полезнее, чем «во второй половине дня».
 - Если Луна без курса — обязательно скажи об этом и о том, что в это окно лучше не начинать новое и не подписывать важное.
 - Свяжи личный день (нумерология) с астрологической картиной, а не приводи их двумя отдельными списками.
 - Структура ответа:
   1. Одно-два предложения: общий тон дня.
-  2. Что именно происходит и когда (по главным пунктам, со временем).
+  2. Что именно происходит и когда — по порядку дня, со временем.
   3. На что обратить внимание / чего лучше не делать сегодня.
   4. Один короткий практический совет.
 - Без фатализма и запугивания. Никаких медицинских, юридических и финансовых гарантий и рекомендаций.
@@ -135,8 +154,10 @@ export function buildDailyPrompt(input: DailyPromptInput): ChatMessage[] {
     '',
     moonBlock(forecast),
     '',
-    'ГЛАВНОЕ ЗА ДЕНЬ (в порядке важности):',
-    ...(today.length > 0 ? today.map(highlightLine) : ['  • день без выраженных событий']),
+    'ГЛАВНОЕ ЗА ДЕНЬ (по времени, от начала суток; пункты без времени — весь день):',
+    ...(today.length > 0
+      ? byTime(today).map(highlightLine)
+      : ['  • день без выраженных событий']),
     background.length > 0
       ? `\nОБЩИЙ ПЕРИОД (фон, держится неделями — только контекст):\n${background.map(highlightLine).join('\n')}`
       : null,

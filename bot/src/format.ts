@@ -43,6 +43,28 @@ function voidLine(period: VoidOfCourse): string {
   return `⚠️ Луна без курса ${from} ${to} — не лучшее время начинать новое`
 }
 
+/**
+ * Chronological order, for reading.
+ *
+ * The API ranks by score, and that ranking still decides *which* few findings
+ * out of dozens are worth showing. But once they are chosen, a list headed by a
+ * time reads as a schedule: jumping 07:00 → 03:47 → 01:47 looks like a bug, and
+ * the reader is better placed than we are to decide what matters to them.
+ *
+ * Findings with no time apply all day, so they follow the timed ones — among
+ * themselves they keep the API's importance order.
+ */
+export function byTime(items: Highlight[]): Highlight[] {
+  return [...items].sort((a, b) => {
+    const left = a.time_local ?? ''
+    const right = b.time_local ?? ''
+    if (left && right) return left < right ? -1 : left > right ? 1 : 0
+    if (left) return -1
+    if (right) return 1
+    return b.score - a.score
+  })
+}
+
 function highlightLine(item: Highlight): string {
   const time = at(item.time_local)
   const prefix = time ? `<b>${time}</b> · ` : ''
@@ -78,7 +100,7 @@ export function renderFacts(response: DailyResponse): string {
 
   if (today.length > 0) {
     lines.push('', '<b>Главное за день</b>')
-    lines.push(...today.map(highlightLine))
+    lines.push(...byTime(today).map(highlightLine))
   }
   if (background.length > 0) {
     lines.push('', '<i>Общий период:</i>')
@@ -142,7 +164,8 @@ export function renderInlineMain(response: DailyResponse): string {
   const today = (response.forecast?.highlights ?? []).filter((h) => h.layer === 'today')
   const lines = [renderInlineBrief(response)]
   if (today.length > 0) {
-    lines.push('', ...today.slice(0, INLINE_HIGHLIGHTS).map(highlightLine))
+    // Take the most significant few by score, then show them in time order.
+    lines.push('', ...byTime(today.slice(0, INLINE_HIGHLIGHTS)).map(highlightLine))
   }
   return lines.join('\n')
 }
