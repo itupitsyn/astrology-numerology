@@ -16,7 +16,7 @@ import type { ChatMessage } from './client'
  * Bump whenever the system prompt or the brief's formatting changes
  * meaningfully. Stored with each reading so A/B comparisons stay honest.
  */
-export const DAILY_PROMPT_VERSION = 'daily-v4-plain-language'
+export const DAILY_PROMPT_VERSION = 'daily-v5-areas'
 
 const PLANET_RU: Record<string, string> = {
   Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
@@ -100,6 +100,22 @@ function eventsBlock(forecast: DailyForecast): string | null {
   return `СОБЫТИЯ СУТОК (местное время):\n${lines.join('\n')}`
 }
 
+/**
+ * The scorecard, given to the model as context rather than as something to
+ * recite. It is the same findings rolled up, so a text that contradicts it —
+ * gloomy prose over an 8/10 — reads as broken even though both halves are
+ * individually defensible.
+ */
+function areasBlock(forecast: DailyForecast): string | null {
+  if (!forecast.areas?.length) return null
+  const lines = forecast.areas.map(
+    (area) =>
+      `  • ${area.title}: ${area.score}/10 (${area.label})` +
+      (area.quiet ? ' — сегодня ничем не задета' : ''),
+  )
+  return `ОЦЕНКА ПО СФЕРАМ (для согласованности тона; не перечисляй её списком):\n${lines.join('\n')}`
+}
+
 function numerologyBlock(numerology: NumerologyResult): string {
   const lines = [
     `  • Личный день: ${numerology.personalDay?.value ?? '—'}`,
@@ -121,6 +137,7 @@ const SYSTEM_PROMPT = `Ты — опытный астролог с тёплым,
 - Различай два слоя. Пометка «фон» — это медленный транзит, который держится неделями и месяцами: упомяни его максимум одной фразой как общий период, НИКОГДА не подавай как новость дня. Всё остальное — собственно сегодняшний день.
 - Обязательно называй КОНКРЕТНОЕ ВРЕМЯ, когда оно указано в квадратных скобках. «Ближе к 14:00» полезнее, чем «во второй половине дня».
 - Если Луна без курса — обязательно скажи об этом и о том, что в это окно лучше не начинать новое и не подписывать важное.
+- Тон текста не должен спорить с блоком «ОЦЕНКА ПО СФЕРАМ»: не пиши мрачно про сферу с высокой оценкой и наоборот. Саму таблицу не пересказывай.
 - Свяжи личный день (нумерология) с астрологической картиной, а не приводи их двумя отдельными списками.
 - Структура ответа:
   1. Одно-два предложения: общий тон дня.
@@ -168,6 +185,7 @@ export function buildDailyPrompt(input: DailyPromptInput): ChatMessage[] {
       : null,
     '',
     eventsBlock(forecast),
+    areasBlock(forecast),
     forecast.retrogrades.length > 0
       ? `РЕТРОГРАДНЫЕ ПЛАНЕТЫ: ${forecast.retrogrades.map((p) => PLANET_RU[p] ?? p).join(', ')}`
       : null,

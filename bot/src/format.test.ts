@@ -42,6 +42,11 @@ function reading(overrides: Partial<DailyResponse> = {}): DailyResponse {
       },
       retrogrades: ['Saturn', 'Neptune'],
       events: [],
+      areas: [
+        { id: "career", title: "Карьера и статус", emoji: "🏢", score: 3, label: "трудно", quiet: false, drivers: [] },
+        { id: "love", title: "Отношения", emoji: "❤️", score: 8, label: "хорошо", quiet: false, drivers: [] },
+        { id: "family", title: "Семья и дом", emoji: "🏠", score: 6, label: "спокойно", quiet: true, drivers: [] },
+      ],
       highlights: [
         {
           kind: 'natal_aspect',

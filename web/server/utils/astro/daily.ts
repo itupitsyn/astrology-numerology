@@ -126,6 +126,19 @@ export interface Highlight {
   data: Record<string, unknown>
 }
 
+/** How today looks for one area of life, out of ten. A rolled-up summary of the
+ *  same findings as `highlights` — deterministic and traceable, not a measurement. */
+export interface AreaScore {
+  id: 'career' | 'work' | 'money' | 'love' | 'family' | 'health' | 'mind'
+  title: string
+  emoji: string
+  score: number
+  label: string
+  /** Nothing in today's chart touches this area; the score is the neutral value. */
+  quiet: boolean
+  drivers: string[]
+}
+
 export interface DailyForecast {
   date: string
   timezone: string
@@ -138,6 +151,7 @@ export interface DailyForecast {
   moon: MoonToday
   positions: TransitPosition[]
   retrogrades: string[]
+  areas: AreaScore[]
   natal_aspects: DailyAspect[]
   sky_aspects: DailyAspect[]
   events: DailyEvent[]

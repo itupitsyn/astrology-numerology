@@ -54,6 +54,9 @@ function reading(): DailyResponse {
       },
       retrogrades: [],
       events: [],
+      areas: [
+        { id: 'career', title: 'Карьера и дела', emoji: '🏢', score: 7, label: 'ровно', quiet: false, drivers: [] },
+      ],
       highlights: [
         {
           kind: 'natal_aspect',
@@ -74,7 +77,7 @@ afterEach(() => {
 })
 
 describe('handleInlineQuery', () => {
-  it('offers the brief and the longer variant', async () => {
+  it('offers the scorecard and the timeline', async () => {
     vi.mocked(fetchDaily).mockResolvedValue(reading())
     const { ctx, answers } = fakeContext()
 

@@ -117,6 +117,9 @@ export function renderFacts(response: DailyResponse): string {
     lines.push(...background.map((h) => `• ${escapeHtml(highlightText(h))}`))
   }
 
+  const scorecard = renderAreas(response)
+  if (scorecard) lines.push('', '<b>Оценка дня</b>', scorecard)
+
   if (forecast.retrogrades.length > 0) {
     const names = forecast.retrogrades.map((p) => PLANET_RU[p] ?? p).join(', ')
     lines.push('', `↩️ Ретроградны: ${escapeHtml(names)}`)
@@ -138,6 +141,34 @@ export function renderFacts(response: DailyResponse): string {
 export function renderProse(text: string): string {
   return escapeHtml(text.trim()).replace(/\*\*(.+?)\*\*/gs, '<b>$1</b>')
 }
+
+/**
+ * The per-area scorecard.
+ *
+ * The word carries as much weight as the digit on purpose: the number is a
+ * consistent roll-up of the day's findings, not a measurement, and a one-point
+ * difference means nothing. Showing "6/10, ровно" keeps that honest without
+ * burying the at-a-glance value.
+ */
+export function renderAreas(response: DailyResponse): string {
+  const areas = response.forecast?.areas ?? []
+  if (areas.length === 0) return ''
+
+  return areas
+    .map(
+      (area) =>
+        `${area.emoji} ${escapeHtml(area.title)} — <b>${area.score}/10</b>, ${escapeHtml(area.label)}`,
+    )
+    .join('\n')
+}
+
+/**
+ * Without a birth time there are no houses, so half the evidence behind a score
+ * is missing. Callers that show the scorecard on its own append this; `renderFacts`
+ * carries its own version of the caveat.
+ */
+export const NO_HOUSES_NOTE =
+  '<i>Время рождения не указано — оценка только по планетам, без домов.</i>'
 
 /**
  * One line, for pasting into someone else's chat.

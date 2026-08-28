@@ -21,7 +21,7 @@
 import type { InlineQueryResult } from 'grammy/types'
 import type { Context } from 'grammy'
 import { NeedsProfileError, fetchDaily } from './api'
-import { renderInlineBrief, renderInlineMain, stripTags } from './format'
+import { NO_HOUSES_NOTE, renderAreas, renderInlineBrief, renderInlineMain, stripTags } from './format'
 import type { DailyResponse } from './types'
 
 /**
@@ -128,14 +128,25 @@ export async function handleInlineQuery(ctx: Context): Promise<void> {
       }
     }
 
-    const brief = renderInlineBrief(reading)
+    const header = renderInlineBrief(reading)
     const main = renderInlineMain(reading)
 
-    const results: InlineQueryResult[] = [article('brief', '✦ Кратко — одна строка', brief)]
+    const results: InlineQueryResult[] = []
 
-    // Only offer the longer variant when it actually says more.
-    if (main !== brief) {
+    const scorecard = renderAreas(reading)
+    if (scorecard) {
+      const note = reading.forecast?.houses_known === false ? `\n\n${NO_HOUSES_NOTE}` : ''
+      results.push(article('areas', '✦ Оценка дня по сферам', `${header}\n\n${scorecard}${note}`))
+    }
+
+    // Only offer the timeline when it actually says more than its own header.
+    if (main !== header) {
       results.push(article('main', '✦ Главное за день', main))
+    }
+    // Never answer with nothing to send: an empty picker is indistinguishable
+    // from a broken one.
+    if (results.length === 0) {
+      results.push(article('brief', '✦ Коротко о дне', header))
     }
 
     await ctx.answerInlineQuery(results, {

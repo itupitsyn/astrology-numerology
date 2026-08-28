@@ -55,6 +55,24 @@ export interface DailyEvent {
   phase?: string | null
 }
 
+/**
+ * How today looks for one area of life, out of ten.
+ *
+ * A summary rolled up from the same findings as the highlights — deterministic
+ * and traceable, but not a measurement. One point of difference is noise, which
+ * is why `label` exists and gets shown alongside the number.
+ */
+export interface AreaScore {
+  id: 'career' | 'work' | 'money' | 'love' | 'family' | 'health' | 'mind'
+  title: string
+  emoji: string
+  score: number
+  label: string
+  /** Nothing in today's chart touches this area; the score is the neutral value. */
+  quiet: boolean
+  drivers: string[]
+}
+
 export interface DailyForecast {
   date: string
   timezone: string
@@ -63,6 +81,7 @@ export interface DailyForecast {
   retrogrades: string[]
   events: DailyEvent[]
   highlights: Highlight[]
+  areas: AreaScore[]
 }
 
 export interface NumerologyNumber {

@@ -371,6 +371,33 @@ class Highlight(BaseModel):
     data: dict = Field(default_factory=dict, description="Machine-readable source record.")
 
 
+class AreaScore(BaseModel):
+    """How today looks for one area of life, out of ten.
+
+    Deterministic and traceable — rolled up from the same findings and the same
+    weights as `highlights`, so the two can never disagree. It is a summary, not
+    a measurement: a one-point difference is noise, which is why `label` exists
+    and callers are expected to lead with the word rather than the digit.
+    """
+
+    id: str = Field(
+        ...,
+        description="'career' | 'work' | 'money' | 'love' | 'family' | 'health' | 'mind'.",
+    )
+    title: str
+    emoji: str
+    score: int = Field(..., ge=1, le=10)
+    label: str = Field(..., description="трудно | с усилием | ровно | хорошо | отлично | спокойно.")
+    quiet: bool = Field(
+        ...,
+        description="Nothing in today's chart touches this area; the score is the neutral value.",
+    )
+    drivers: list[str] = Field(
+        default_factory=list,
+        description="The findings behind the number, strongest first, so it can always be explained.",
+    )
+
+
 class DailyForecast(BaseModel):
     date: str
     timezone: str
@@ -386,6 +413,10 @@ class DailyForecast(BaseModel):
     moon: MoonToday
     positions: list[TransitPosition]
     retrogrades: list[str]
+    areas: list[AreaScore] = Field(
+        ...,
+        description="Per-area scorecard for the day. Computed without houses when the birth time is unknown.",
+    )
     natal_aspects: list[DailyAspect] = Field(..., description="Transits to the natal chart, ranked.")
     sky_aspects: list[DailyAspect] = Field(..., description="Transit-to-transit aspects — the general weather.")
     events: list[DailyEvent]

@@ -35,6 +35,7 @@ from kerykeion import AstrologicalSubject
 
 import aspects
 import dignities as dig
+import life_areas
 import meanings
 from aspects import Body, aspect_offset, aspect_targets, find_aspect, transit_orb
 from geocoding import resolve_timezone
@@ -499,6 +500,7 @@ class DailyComputation:
     moon: dict
     positions: list[dict]
     retrogrades: list[str]
+    areas: list[dict]
     natal_aspects: list[dict]
     sky_aspects: list[dict]
     events: list[dict]
@@ -937,6 +939,13 @@ def compute_daily(
 
     # --- ranking ----------------------------------------------------------- #
     natal_aspects.sort(key=lambda r: r["score"], reverse=True)
+
+    # Rolled up from the same findings and the same weights, so the scorecard
+    # can never contradict the highlights printed above it.
+    areas = life_areas.score_areas(
+        natal_aspects,
+        {name: natal.house_of(body.lon) for name, body in transiting_now.items()},
+    )
     sky_aspects.sort(key=lambda r: r["score"], reverse=True)
     highlights = _rank_highlights(findings, max_highlights)
 
@@ -951,6 +960,7 @@ def compute_daily(
         moon=moon,
         positions=positions,
         retrogrades=retrogrades,
+        areas=areas,
         natal_aspects=natal_aspects,
         sky_aspects=sky_aspects,
         events=events,
