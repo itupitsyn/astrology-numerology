@@ -11,10 +11,15 @@
 
 import { Bot, GrammyError, HttpError } from 'grammy'
 import { fetchProfileStatus, sendFeedback } from './api'
-import { config } from './config'
+import { assertConfig, config } from './config'
 import { promptForProfile, sendDaily } from './daily'
 import { forgetInlineCache, handleInlineQuery } from './inline'
 import { ratedKeyboard, settingsKeyboard, todayKeyboard } from './keyboards'
+
+// Fail before anything else touches the network. This is the entry point, so
+// throwing here is the intended behaviour — the config module itself stays
+// side-effect free, which is what keeps every other module testable.
+assertConfig()
 
 // The proxy, when set, wraps ONLY calls to api.telegram.org. Requests to the
 // Nuxt layer keep going out directly — see `telegramProxyUrl` in config.ts for
