@@ -100,8 +100,31 @@ describe('renderFacts', () => {
 
   it('puts the exact time in front of each highlight', () => {
     const html = renderFacts(reading())
-    expect(html).toContain('<b>11:53</b> · Луна в соединении к натальной Луне')
-    expect(html).toContain('<b>14:04</b> · Меркурий переходит в Деву')
+    expect(html).toContain('<b>11:53</b> — ')
+    expect(html).toContain('<b>14:04</b> — ')
+  })
+
+  it('shows the everyday reading, not the chart wording', () => {
+    // Nobody opens a forecast to be told about a square to their natal Pluto.
+    const base = reading()
+    base.forecast!.highlights[0]!.meaning = 'Дома спокойно, легко понять, чего хочется.'
+    const html = renderFacts(base)
+    expect(html).toContain('Дома спокойно')
+    expect(html).not.toContain('Луна в соединении к натальной Луне')
+  })
+
+  it('falls back to the chart wording when there is no everyday reading', () => {
+    const base = reading()
+    base.forecast!.highlights[0]!.meaning = null
+    expect(renderFacts(base)).toContain('Луна в соединении к натальной Луне')
+  })
+
+  it('marks undated findings as lasting all day', () => {
+    const base = reading()
+    base.forecast!.highlights = [
+      { kind: 'natal_aspect', layer: 'today', score: 1, title: 'Фон', detail: '', meaning: 'Тянет тянуть.', time_local: null },
+    ]
+    expect(renderFacts(base)).toContain('<b>весь день</b> — Тянет тянуть.')
   })
 
   it('lists the day in time order, not by score', () => {

@@ -3,6 +3,7 @@ import type { BirthData } from '../../utils/astro/types'
 import { computeNumerology } from '../../utils/numerology/core'
 import { buildInterpretationPrompt, PROMPT_VERSION } from '../../utils/llm/prompt'
 import { resolveModelId, streamChatCompletion } from '../../utils/llm/client'
+import { leaseLlmSlot } from '../../utils/llm/limiter'
 import { newReadingId, saveReading } from '../../utils/readings'
 
 const REQUIRED_NUMBERS = ['year', 'month', 'day', 'hour', 'minute', 'latitude', 'longitude'] as const
@@ -61,8 +62,17 @@ export default defineEventHandler(async (event) => {
 
   ;(async () => {
     let fullText = ''
+    let release: (() => void) | null = null
     try {
+      // The chart goes out before we queue for the GPU, so the page has
+      // something to render while waiting rather than an empty spinner.
       await eventStream.push({ event: 'meta', data: JSON.stringify({ chart, numerology }) })
+
+      // Held for the whole stream: the work happens as the generator is
+      // consumed, so releasing when it is merely created would let every
+      // concurrent reading onto the one card at once.
+      release = await leaseLlmSlot()
+
       for await (const delta of streamChatCompletion(event, messages, {
         temperature: body.temperature,
         enableThinking: body.enableThinking,
@@ -105,6 +115,7 @@ export default defineEventHandler(async (event) => {
       const message = err instanceof Error ? err.message : 'LLM stream failed'
       await eventStream.push({ event: 'error', data: JSON.stringify(message) })
     } finally {
+      release?.()
       await eventStream.close()
     }
   })()

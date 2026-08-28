@@ -1,6 +1,7 @@
 import { fetchHoraryChart } from '../../utils/astro/client'
 import { buildHoraryPrompt, HORARY_PROMPT_VERSION } from '../../utils/llm/horaryPrompt'
 import { resolveModelId, streamChatCompletion } from '../../utils/llm/client'
+import { leaseLlmSlot } from '../../utils/llm/limiter'
 import { parseHoraryBody, type HoraryInterpretationBody } from '../../utils/horaryInput'
 import { newHoraryId, saveHoraryReading } from '../../utils/readings'
 
@@ -28,8 +29,14 @@ export default defineEventHandler(async (event) => {
 
   ;(async () => {
     let fullText = ''
+    let release: (() => void) | null = null
     try {
+      // The chart — and its deterministic verdict — go out before we queue for
+      // the GPU, so the page has the answer even while the prose waits.
       await eventStream.push({ event: 'meta', data: JSON.stringify({ horary: chart }) })
+
+      // Held for the whole stream; see the natal streaming endpoint for why.
+      release = await leaseLlmSlot()
 
       for await (const delta of streamChatCompletion(event, messages, {
         temperature: body.temperature,
@@ -70,6 +77,7 @@ export default defineEventHandler(async (event) => {
       const message = err instanceof Error ? err.message : 'LLM stream failed'
       await eventStream.push({ event: 'error', data: JSON.stringify(message) })
     } finally {
+      release?.()
       await eventStream.close()
     }
   })()

@@ -357,8 +357,16 @@ class Highlight(BaseModel):
     kind: str = Field(..., description="'natal_aspect' | 'sky_aspect' | 'event'.")
     layer: str
     score: float
-    title: str
+    title: str = Field(..., description="The chart-level fact, e.g. 'Луна в квадрате к натальному Плутону'.")
     detail: str
+    meaning: Optional[str] = Field(
+        None,
+        description=(
+            "What it means for an ordinary day, in plain language — the part a reader "
+            "actually wants, with `title` as the receipt behind it. Phrased as a tendency, "
+            "never as an event that will happen. Null where no everyday reading applies."
+        ),
+    )
     time_local: Optional[str] = None
     data: dict = Field(default_factory=dict, description="Machine-readable source record.")
 

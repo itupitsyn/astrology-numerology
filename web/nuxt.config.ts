@@ -30,11 +30,12 @@ export default defineNuxtConfig({
       baseUrl: '',
       apiKey: '', // sent as Bearer if set
 
-      // Outbound budget. The model runs on ONE GPU, so more than a couple of
-      // concurrent generations just makes everybody slower and then time out
-      // together. Requests beyond the limit queue; a request that waits longer
-      // than queueMaxWaitMs is rejected as busy rather than left hanging.
-      // Override with NUXT_LLM_CONCURRENCY / NUXT_LLM_QUEUE_MAX_WAIT_MS.
+      // Outbound budget: match the llama.cpp server's `--parallel N`, readable
+      // from its /props as `total_slots`. Set it lower and spare slots idle
+      // while users queue here; set it higher and the excess queues invisibly
+      // inside llama.cpp, where nothing bounds it and everything times out
+      // together. 1 is the safe default for an unknown server — override with
+      // NUXT_LLM_CONCURRENCY.
       concurrency: 1,
       queueMaxWaitMs: 60_000,
       queueMaxSize: 50,

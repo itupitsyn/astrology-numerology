@@ -3,6 +3,7 @@ import type { BirthData } from '../utils/astro/types'
 import { computeNumerology } from '../utils/numerology/core'
 import { buildInterpretationPrompt } from '../utils/llm/prompt'
 import { chatCompletion } from '../utils/llm/client'
+import { withLlmSlot } from '../utils/llm/limiter'
 
 const REQUIRED_NUMBERS = ['year', 'month', 'day', 'hour', 'minute', 'latitude', 'longitude'] as const
 
@@ -57,11 +58,13 @@ export default defineEventHandler(async (event) => {
     focus: body.focus,
   })
 
-  const llm = await chatCompletion(event, messages, {
-    temperature: body.temperature,
-    maxTokens: body.maxTokens,
-    enableThinking: body.enableThinking,
-  })
+  const llm = await withLlmSlot(() =>
+    chatCompletion(event, messages, {
+      temperature: body.temperature,
+      maxTokens: body.maxTokens,
+      enableThinking: body.enableThinking,
+    }),
+  )
 
   return {
     interpretation: llm.content,

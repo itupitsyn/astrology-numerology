@@ -65,10 +65,20 @@ export function byTime(items: Highlight[]): Highlight[] {
   })
 }
 
+/**
+ * What a reader gets told. The everyday reading leads; the chart wording is a
+ * fallback for the few findings that have none, not a second line — nobody
+ * opens a forecast to be told about a square to their natal Pluto.
+ */
+function highlightText(item: Highlight): string {
+  return item.meaning || item.title
+}
+
 function highlightLine(item: Highlight): string {
   const time = at(item.time_local)
-  const prefix = time ? `<b>${time}</b> · ` : ''
-  return `• ${prefix}${escapeHtml(item.title)}`
+  // Undated findings hold all day; saying so beats a bullet that starts nowhere.
+  const prefix = time ? `<b>${time}</b> — ` : '<b>весь день</b> — '
+  return `• ${prefix}${escapeHtml(highlightText(item))}`
 }
 
 /**
@@ -104,7 +114,7 @@ export function renderFacts(response: DailyResponse): string {
   }
   if (background.length > 0) {
     lines.push('', '<i>Общий период:</i>')
-    lines.push(...background.map((h) => `• ${escapeHtml(h.title)}`))
+    lines.push(...background.map((h) => `• ${escapeHtml(highlightText(h))}`))
   }
 
   if (forecast.retrogrades.length > 0) {

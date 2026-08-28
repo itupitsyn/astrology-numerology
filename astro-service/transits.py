@@ -35,6 +35,7 @@ from kerykeion import AstrologicalSubject
 
 import aspects
 import dignities as dig
+import meanings
 from aspects import Body, aspect_offset, aspect_targets, find_aspect, transit_orb
 from geocoding import resolve_timezone
 from models import BirthData
@@ -414,8 +415,12 @@ class Finding:
     kind: str              # "natal_aspect" | "sky_aspect" | "event"
     layer: str             # "today" | "background"
     score: float
-    title: str
+    title: str             # the chart-level fact, e.g. "Луна в квадрате к ..."
     detail: str
+    # What it means for an ordinary day. This is what a reader actually wants;
+    # `title` is the receipt that backs it up. None when the combination has no
+    # sensible everyday reading (transit-to-transit weather, say).
+    meaning: Optional[str] = None
     time_local: Optional[str] = None
     data: dict = field(default_factory=dict)
 
@@ -426,6 +431,7 @@ class Finding:
             "score": round(self.score, 3),
             "title": self.title,
             "detail": self.detail,
+            "meaning": self.meaning,
             "time_local": self.time_local,
             "data": self.data,
         }
@@ -731,6 +737,7 @@ def compute_daily(
                             f"к {_natal_dative(n_name)}"
                         ),
                         detail=detail,
+                        meaning=meanings.natal_aspect_meaning(t_name, n_name, aspect_name),
                         time_local=exact_local,
                         data=record,
                     )
@@ -741,6 +748,12 @@ def compute_daily(
     names = list(TRANSITING)
     for i, a_name in enumerate(names):
         for b_name in names[i + 1:]:
+            # A Sun-Moon aspect *is* a lunar phase, and the phase event says it
+            # far better ("Полнолуние" beats "Солнце в оппозиции к Луне"). Keeping
+            # both puts the same moment in the list twice.
+            if {a_name, b_name} == {"Sun", "Moon"}:
+                continue
+
             a_body, b_body = transiting_now[a_name], transiting_now[b_name]
             wide = a_name in _WIDE_SCAN_BODIES or b_name in _WIDE_SCAN_BODIES
 
@@ -792,6 +805,7 @@ def compute_daily(
                             f"к {_DATIVE[b_name]} (общий фон)"
                         ),
                         detail=detail,
+                        meaning=meanings.sky_aspect_meaning(aspect_name),
                         time_local=exact_local,
                         data=record,
                     )
@@ -818,6 +832,7 @@ def compute_daily(
                 kind="event", layer=layer_of(name), score=score,
                 title=f"{PLANET_RU[name]} переходит в {_SIGN_ACC[to_sign]}",
                 detail=f"из знака {_SIGN_NOM[from_sign]}",
+                meaning=meanings.ingress_meaning(name),
                 time_local=record["time_local"], data=record,
             )
         )
@@ -840,6 +855,7 @@ def compute_daily(
                     f"{'ретроградным' if retrograde else 'директным'}"
                 ),
                 detail="смена направления — тема этой планеты разворачивается",
+                meaning=meanings.station_meaning(name, retrograde),
                 time_local=record["time_local"], data=record,
             )
         )
@@ -862,6 +878,7 @@ def compute_daily(
                 score=_EVENT_SCORE["moon_phase_major" if major else "moon_phase_minor"],
                 title=f"{label} в знаке {_SIGN_LOC[dig.sign_num_of(moon_lon)]}",
                 detail="точный момент фазы",
+                meaning=meanings.moon_phase_meaning(label),
                 time_local=record["time_local"], data=record,
             )
         )
@@ -886,6 +903,7 @@ def compute_daily(
                     f"с {record['start_local'][11:]} до {record['end_local'][11:]} — "
                     "время не для новых начинаний"
                 ),
+                meaning=meanings.VOID_OF_COURSE_MEANING,
                 time_local=record["start_local"], data={"kind": "void_of_course", **record},
             )
         )

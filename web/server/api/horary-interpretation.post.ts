@@ -1,6 +1,7 @@
 import { fetchHoraryChart } from '../utils/astro/client'
 import { buildHoraryPrompt, HORARY_PROMPT_VERSION } from '../utils/llm/horaryPrompt'
 import { chatCompletion, resolveModelId } from '../utils/llm/client'
+import { withLlmSlot } from '../utils/llm/limiter'
 import { parseHoraryBody, type HoraryInterpretationBody } from '../utils/horaryInput'
 import { newHoraryId, saveHoraryReading } from '../utils/readings'
 
@@ -19,11 +20,13 @@ export default defineEventHandler(async (event) => {
   const chart = await fetchHoraryChart(event, question)
   const messages = buildHoraryPrompt({ chart })
 
-  const llm = await chatCompletion(event, messages, {
-    temperature: body.temperature,
-    maxTokens: body.maxTokens,
-    enableThinking: body.enableThinking,
-  })
+  const llm = await withLlmSlot(() =>
+    chatCompletion(event, messages, {
+      temperature: body.temperature,
+      maxTokens: body.maxTokens,
+      enableThinking: body.enableThinking,
+    }),
+  )
 
   let horaryId: string | null = newHoraryId()
   try {

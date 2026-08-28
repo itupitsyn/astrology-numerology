@@ -16,7 +16,7 @@ import type { ChatMessage } from './client'
  * Bump whenever the system prompt or the brief's formatting changes
  * meaningfully. Stored with each reading so A/B comparisons stay honest.
  */
-export const DAILY_PROMPT_VERSION = 'daily-v3-chronological'
+export const DAILY_PROMPT_VERSION = 'daily-v4-plain-language'
 
 const PLANET_RU: Record<string, string> = {
   Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
@@ -57,8 +57,11 @@ function moonBlock(forecast: DailyForecast): string {
 
 function highlightLine(item: Highlight): string {
   const time = at(item.time_local)
-  const when = time ? ` [${time}]` : ''
-  return `  • ${item.title}${when} — ${item.detail}`
+  const when = time ? ` [${time}]` : ' [весь день]'
+  // The everyday reading leads, with the chart wording kept behind it so the
+  // model can stay accurate without quoting jargon at the reader.
+  const meaning = item.meaning ? ` ${item.meaning}` : ''
+  return `  •${when}${meaning} (по карте: ${item.title}, ${item.detail})`
 }
 
 /**
@@ -113,6 +116,8 @@ const SYSTEM_PROMPT = `Ты — опытный астролог с тёплым,
 Правила:
 - Опирайся ТОЛЬКО на приведённые данные. Не выдумывай аспекты, положения планет, события и числа, которых нет в брифе.
 - Главное — блок «ГЛАВНОЕ ЗА ДЕНЬ». В него уже отобрано самое значимое за сутки, и пункты идут ПО ВРЕМЕНИ. Веди рассказ по ходу дня, в том же порядке; не переставляй пункты и не расставляй их по важности за читателя. Остальные блоки используй как контекст.
+- Пиши на обыденном языке: что человек скорее всего почувствует и на что стоит обратить внимание. Скобка «по карте: …» дана тебе для точности — НЕ пересказывай её читателю, не упоминай названия планет, аспектов, домов и знаков в основном тексте.
+- Говори о СКЛОННОСТЯХ и настрое периода, а не о происшествиях. «Ближе к вечеру острее реакции, легко сорваться» — так можно. «Вечером вы поссоритесь с начальником» или любое предсказание конкретного события — нельзя, даже если очень просят.
 - Различай два слоя. Пометка «фон» — это медленный транзит, который держится неделями и месяцами: упомяни его максимум одной фразой как общий период, НИКОГДА не подавай как новость дня. Всё остальное — собственно сегодняшний день.
 - Обязательно называй КОНКРЕТНОЕ ВРЕМЯ, когда оно указано в квадратных скобках. «Ближе к 14:00» полезнее, чем «во второй половине дня».
 - Если Луна без курса — обязательно скажи об этом и о том, что в это окно лучше не начинать новое и не подписывать важное.

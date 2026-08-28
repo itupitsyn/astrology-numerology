@@ -1,5 +1,6 @@
 import { HORARY_CATEGORIES, categoryById } from '../../../shared/horary'
 import { chatCompletion } from '../../utils/llm/client'
+import { LlmBusyError, withLlmSlot } from '../../utils/llm/limiter'
 
 /**
  * POST /api/horary/suggest-category — classify a free-text horary question
@@ -43,14 +44,28 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'question is required' })
   }
 
-  const { content } = await chatCompletion(
-    event,
-    [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `Вопрос: «${question}»\nid темы:` },
-    ],
-    { temperature: 0, maxTokens: 20, enableThinking: false, timeoutMs: 30_000 },
-  )
+  // This is a hint offered while someone is still typing their question, and it
+  // shares the one GPU with three-minute generations. So it takes a slot like
+  // everything else, but a busy queue is answered with "no suggestion" rather
+  // than an error: the picker simply stays unset, which is what it does anyway
+  // when the model's answer is unparseable.
+  let content: string
+  try {
+    const result = await withLlmSlot(() =>
+      chatCompletion(
+        event,
+        [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: `Вопрос: «${question}»\nid темы:` },
+        ],
+        { temperature: 0, maxTokens: 20, enableThinking: false, timeoutMs: 30_000 },
+      ),
+    )
+    content = result.content
+  } catch (err) {
+    if (err instanceof LlmBusyError) return { categoryId: null }
+    throw err
+  }
 
   const id = parseCategoryId(content)
   return { categoryId: id && categoryById(id) ? id : null }

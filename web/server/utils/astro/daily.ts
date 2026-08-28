@@ -113,8 +113,15 @@ export interface Highlight {
   kind: 'natal_aspect' | 'sky_aspect' | 'event'
   layer: TransitLayer
   score: number
+  /** The chart-level fact, e.g. "Луна в квадрате к натальному Плутону". */
   title: string
   detail: string
+  /**
+   * What it means for an ordinary day, in plain language — the part a reader
+   * actually wants, phrased as a tendency rather than an event that will happen.
+   * Null where no everyday reading applies.
+   */
+  meaning?: string | null
   time_local?: string | null
   data: Record<string, unknown>
 }

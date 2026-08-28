@@ -79,13 +79,34 @@ export class ConcurrencyLimiter {
     this.active = Math.max(0, this.active - 1)
   }
 
+  /**
+   * Take a slot and get back the function that returns it.
+   *
+   * For streaming, where the work happens while the caller iterates rather than
+   * inside a single promise: `run` would hand the slot back the moment the
+   * generator was *created*, letting every concurrent stream through at once —
+   * which is exactly the pile-up the budget exists to prevent.
+   *
+   * Releasing twice is a no-op, so a `finally` that also runs on the happy path
+   * cannot over-release and inflate the budget.
+   */
+  async lease(): Promise<() => void> {
+    await this.acquire()
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.release()
+    }
+  }
+
   /** Run `fn` holding one slot. The slot is always released. */
   async run<T>(fn: () => Promise<T>): Promise<T> {
-    await this.acquire()
+    const release = await this.lease()
     try {
       return await fn()
     } finally {
-      this.release()
+      release()
     }
   }
 }
@@ -108,4 +129,9 @@ export function useLlmLimiter(): ConcurrencyLimiter {
 /** Convenience wrapper: run `fn` within the LLM budget. */
 export function withLlmSlot<T>(fn: () => Promise<T>): Promise<T> {
   return useLlmLimiter().run(fn)
+}
+
+/** Take a slot for a streamed generation; call the result when the stream ends. */
+export function leaseLlmSlot(): Promise<() => void> {
+  return useLlmLimiter().lease()
 }

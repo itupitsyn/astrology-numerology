@@ -145,18 +145,27 @@ export async function* streamChatCompletion(
   if (options.maxTokens != null) body.max_tokens = options.maxTokens
   if (options.stop) body.stop = options.stop
 
+  // A stream with no deadline can hang forever. On its own that only wedged one
+  // request; now that streams hold a slot from the shared GPU budget, a hung one
+  // would block everybody behind it indefinitely.
+  const controller = new AbortController()
+  const deadline = setTimeout(() => controller.abort(), options.timeoutMs ?? 180_000)
+
   let res: Response
   try {
     res = await fetch(`${llm.baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: controller.signal,
     })
   } catch {
+    clearTimeout(deadline)
     throw createError({ statusCode: 502, statusMessage: 'LLM service is unreachable' })
   }
 
   if (!res.ok || !res.body) {
+    clearTimeout(deadline)
     throw createError({ statusCode: res.status || 502, statusMessage: 'LLM stream error' })
   }
 
@@ -164,29 +173,36 @@ export async function* streamChatCompletion(
   const decoder = new TextDecoder()
   let buffer = ''
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
 
-    // SSE frames are separated by newlines; keep the last partial line buffered.
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
+      // SSE frames are separated by newlines; keep the last partial line buffered.
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
 
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed.startsWith('data:')) continue
-      const data = trimmed.slice(5).trim()
-      if (data === '[DONE]') return
-      try {
-        const json = JSON.parse(data) as OpenAIChatResponse & {
-          choices: Array<{ delta?: { content?: string } }>
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) continue
+        const data = trimmed.slice(5).trim()
+        if (data === '[DONE]') return
+        try {
+          const json = JSON.parse(data) as OpenAIChatResponse & {
+            choices: Array<{ delta?: { content?: string } }>
+          }
+          const delta = json.choices?.[0]?.delta?.content
+          if (delta) yield delta
+        } catch {
+          // Ignore keep-alive / non-JSON lines.
         }
-        const delta = json.choices?.[0]?.delta?.content
-        if (delta) yield delta
-      } catch {
-        // Ignore keep-alive / non-JSON lines.
       }
     }
+  } finally {
+    // Also runs when the consumer abandons the generator early (client
+    // disconnect), which is what stops the timer and the slot from leaking.
+    clearTimeout(deadline)
+    await reader.cancel().catch(() => {})
   }
 }

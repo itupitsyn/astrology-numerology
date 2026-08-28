@@ -100,6 +100,46 @@ describe('ConcurrencyLimiter', () => {
     expect(limiter.stats).toMatchObject({ active: 0, queued: 0 })
   })
 
+  it('holds a leased slot until it is explicitly released', async () => {
+    // What streaming needs: the work happens while the caller iterates, so a
+    // slot returned when the generator is merely created would let every
+    // concurrent stream onto the one card at once.
+    const limiter = new ConcurrencyLimiter(1, 50, 10)
+    const release = await limiter.lease()
+
+    expect(limiter.stats).toMatchObject({ active: 1 })
+    await expect(limiter.run(async () => 'second')).rejects.toBeInstanceOf(LlmBusyError)
+
+    release()
+    await expect(limiter.run(async () => 'second')).resolves.toBe('second')
+  })
+
+  it('ignores a double release, so a finally cannot inflate the budget', async () => {
+    const limiter = new ConcurrencyLimiter(1, 1000, 10)
+    const release = await limiter.lease()
+    release()
+    release()
+    release()
+    expect(limiter.stats).toMatchObject({ active: 0 })
+  })
+
+  it('hands a released lease straight to whoever is waiting', async () => {
+    const limiter = new ConcurrencyLimiter(1, 5000, 10)
+    const release = await limiter.lease()
+
+    let ran = false
+    const queued = limiter.run(async () => {
+      ran = true
+      return 'ok'
+    })
+
+    await Promise.resolve()
+    expect(ran).toBe(false)
+
+    release()
+    await expect(queued).resolves.toBe('ok')
+  })
+
   it('treats a limit of zero as unlimited', async () => {
     const limiter = new ConcurrencyLimiter(0, 10, 1)
     const blocker = deferred()
