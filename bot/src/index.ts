@@ -116,6 +116,34 @@ bot.callbackQuery('rated', (ctx) => ctx.answerCallbackQuery())
 // src/inline.ts for why the prose can never come along for the ride.
 bot.on('inline_query', handleInlineQuery)
 
+/**
+ * Anything that is not a command we know.
+ *
+ * Registered last, so the commands above have already claimed what is theirs.
+ * Without it the bot answers plain text with silence — and "привет" is the first
+ * thing a good half of people try, so the very first impression is a bot that
+ * appears broken. A new user is sent straight to the form instead.
+ *
+ * Private chats only: in a group this would reply to every unrelated message.
+ */
+bot.on('message', async (ctx) => {
+  if (ctx.chat?.type !== 'private') return
+
+  try {
+    const status = await fetchProfileStatus(ctx.from!.id)
+    if (!status.exists) {
+      await promptForProfile(ctx, status.setupUrl)
+      return
+    }
+  } catch (err) {
+    console.error('[fallback] profile check failed', err)
+  }
+
+  await ctx.reply('Я понимаю команды из меню. Могу составить прогноз на сегодня:', {
+    reply_markup: todayKeyboard(),
+  })
+})
+
 bot.catch((err) => {
   const ctx = err.ctx
   console.error(`[bot] error while handling update ${ctx.update.update_id}:`)
