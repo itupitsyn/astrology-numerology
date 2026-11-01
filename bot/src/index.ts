@@ -15,7 +15,7 @@ import { assertConfig, config } from './config'
 import { promptForProfile, sendDaily } from './daily'
 import { forgetInlineCache, handleInlineQuery } from './inline'
 import { ratedKeyboard, settingsKeyboard, todayKeyboard } from './keyboards'
-import { sendNote } from './note'
+import { sendNote, sendNoteCommand } from './note'
 
 // Fail before anything else touches the network. This is the entry point, so
 // throwing here is the intended behaviour — the config module itself stays
@@ -36,6 +36,7 @@ const HELP = [
   'Что я умею:',
   '',
   '/today — прогноз на сегодня',
+  '/mika — Мика расскажет прогноз кружочком',
   '/settings — изменить дату, время и место рождения',
   '/help — эта справка',
   '',
@@ -44,6 +45,15 @@ const HELP = [
   '',
   'Прогноз считается на ваши сутки — по тому городу, где вы живёте сейчас.',
 ].join('\n')
+
+/**
+ * Runs a note delivery without holding up the bot. Recording takes a minute or
+ * more, and grammY handles updates one at a time: awaited, it would leave every
+ * other user unanswered until the note is done.
+ */
+function detached(work: Promise<void>): void {
+  work.catch((err) => console.error('[note] failed', err))
+}
 
 bot.command('start', async (ctx) => {
   const status = await fetchProfileStatus(ctx.from!.id)
@@ -71,6 +81,8 @@ bot.command('start', async (ctx) => {
 bot.command('help', (ctx) => ctx.reply(HELP))
 
 bot.command('today', sendDaily)
+
+bot.command('mika', (ctx) => detached(sendNoteCommand(ctx)))
 
 bot.command('settings', async (ctx) => {
   const status = await fetchProfileStatus(ctx.from!.id)
@@ -114,7 +126,7 @@ bot.callbackQuery(/^fb:([A-Za-z0-9_-]{1,32}):(-?1)$/, async (ctx) => {
 bot.callbackQuery('rated', (ctx) => ctx.answerCallbackQuery())
 
 // «🎥 Кружок от Мики» — see src/note.ts.
-bot.callbackQuery(/^note:([A-Za-z0-9_-]{1,32})$/, (ctx) => sendNote(ctx, ctx.match![1]!))
+bot.callbackQuery(/^note:([A-Za-z0-9_-]{1,32})$/, (ctx) => detached(sendNote(ctx, ctx.match![1]!)))
 
 // Inline mode: `@bot` from any chat. Facts only, deliberately short — see
 // src/inline.ts for why the prose can never come along for the ride.
@@ -163,6 +175,7 @@ bot.catch((err) => {
 async function main() {
   await bot.api.setMyCommands([
     { command: 'today', description: 'Прогноз на сегодня' },
+    { command: 'mika', description: 'Прогноз кружочком от Мики' },
     { command: 'settings', description: 'Мои данные' },
     { command: 'help', description: 'Справка' },
   ])
