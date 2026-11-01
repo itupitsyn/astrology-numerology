@@ -74,6 +74,15 @@ export const config = {
   get telegramProxyUrl(): string | undefined {
     return process.env.TELEGRAM_PROXY_URL?.trim() || undefined
   },
+
+  /**
+   * Service chat the bot parks videos in on their way into an inline message,
+   * which cannot take an upload itself. The bot must be a member. Unset, inline
+   * mode simply does not offer the video.
+   */
+  get noteChatId(): string | undefined {
+    return process.env.NOTE_CHAT_ID?.trim() || undefined
+  },
 }
 
 /**

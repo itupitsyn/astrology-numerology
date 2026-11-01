@@ -11,7 +11,7 @@
  * 2. **The answer must be immediate**, well inside Telegram's few seconds. That
  *    rules out the prose entirely — which suits the brief, since a wall of text
  *    pasted into someone else's chat is exactly the spam to avoid. Inline sends
- *    facts only.
+ *    facts only, plus a placeholder that turns into Mika's video on a tap.
  *
  * 3. **Results are per-user and must never be cached across users.**
  *    `is_personal: true` is what tells Telegram that; without it one person's
@@ -21,7 +21,9 @@
 import type { InlineQueryResult } from 'grammy/types'
 import type { Context } from 'grammy'
 import { NeedsProfileError, fetchDaily } from './api'
+import { config } from './config'
 import { NO_HOUSES_NOTE, renderAreas, renderInlineBrief, renderInlineMain, stripTags } from './format'
+import { inlineNoteKeyboard } from './keyboards'
 import type { DailyResponse } from './types'
 
 /**
@@ -81,6 +83,18 @@ function article(id: string, title: string, html: string): InlineQueryResult {
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
     },
+  }
+}
+
+/** A placeholder only: nothing is recorded until its sender taps the button. See src/note.ts. */
+function mikaArticle(ownerId: number): InlineQueryResult {
+  return {
+    type: 'article',
+    id: 'mika',
+    title: '🎥 Прогноз от Мики',
+    description: 'Видео с прогнозом на сегодня, запись около минуты',
+    input_message_content: { message_text: '🎥 Мика готова рассказать прогноз на сегодня.' },
+    reply_markup: inlineNoteKeyboard(ownerId),
   }
 }
 
@@ -148,6 +162,7 @@ export async function handleInlineQuery(ctx: Context): Promise<void> {
     if (results.length === 0) {
       results.push(article('brief', '✦ Коротко о дне', header))
     }
+    if (config.noteChatId) results.unshift(mikaArticle(telegramId))
 
     await ctx.answerInlineQuery(results, {
       // Without this, Telegram may serve one user's forecast to another.

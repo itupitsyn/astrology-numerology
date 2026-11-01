@@ -33,6 +33,11 @@ export function feedbackKeyboard(readingId: string): InlineKeyboard {
     .text(NOTE_BUTTON, `note:${readingId}`)
 }
 
+/** Under an inline placeholder. The id says whose forecast it is: everyone in the chat sees the button. */
+export function inlineNoteKeyboard(ownerId: number): InlineKeyboard {
+  return new InlineKeyboard().text('🎥 Записать', `inote:${ownerId}`)
+}
+
 /** Replaces the buttons once a rating is in, so it reads as recorded. The note stays. */
 export function ratedKeyboard(rating: 1 | -1, readingId: string): InlineKeyboard {
   return new InlineKeyboard()

@@ -170,6 +170,22 @@ describe('handleInlineQuery', () => {
     expect(answers).toHaveLength(1)
   })
 
+  it('offers Mika only when the service chat is configured, with the sender in the button', async () => {
+    vi.mocked(fetchDaily).mockResolvedValue(reading())
+
+    const without = fakeContext()
+    await handleInlineQuery(without.ctx as never)
+    expect(without.answers[0]!.results.some((r) => (r as { id: string }).id === 'mika')).toBe(false)
+
+    vi.stubEnv('NOTE_CHAT_ID', '-100')
+    const withChat = fakeContext()
+    await handleInlineQuery(withChat.ctx as never)
+    vi.unstubAllEnvs()
+    const mika = withChat.answers[0]!.results[0] as { id: string; reply_markup: { inline_keyboard: { callback_data: string }[][] } }
+    expect(mika.id).toBe('mika')
+    expect(mika.reply_markup.inline_keyboard[0]![0]!.callback_data).toBe(`inote:${TELEGRAM_ID}`)
+  })
+
   it('does nothing when there is no user to answer for', async () => {
     const { ctx, answers } = fakeContext()
     await handleInlineQuery({ ...ctx, from: undefined } as never)

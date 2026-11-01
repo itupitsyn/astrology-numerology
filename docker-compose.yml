@@ -129,6 +129,8 @@ services:
       # Proxy for api.telegram.org where Telegram is blocked. Applied to
       # Telegram traffic ONLY — never to API_BASE_URL above.
       TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
+      # Service chat for Mika's inline video. Unset: inline does not offer it.
+      NOTE_CHAT_ID: ${NOTE_CHAT_ID:-}
       # Belt and braces: if the host exports HTTP_PROXY/HTTPS_PROXY, Bun's fetch
       # honours them and would send the INTERNAL API calls through the proxy
       # too. Those then hang until they time out, which for an inline query

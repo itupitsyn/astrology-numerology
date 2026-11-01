@@ -15,7 +15,7 @@ import { assertConfig, config } from './config'
 import { promptForProfile, sendDaily } from './daily'
 import { forgetInlineCache, handleInlineQuery } from './inline'
 import { ratedKeyboard, settingsKeyboard, todayKeyboard } from './keyboards'
-import { sendNote, sendNoteCommand } from './note'
+import { sendInlineNote, sendNote, sendNoteCommand } from './note'
 
 // Fail before anything else touches the network. This is the entry point, so
 // throwing here is the intended behaviour — the config module itself stays
@@ -41,7 +41,7 @@ const HELP = [
   '/help — эта справка',
   '',
   'Меня можно позвать в любой чат: наберите @имя_бота — и коротким сообщением ' +
-    'отправится прогноз на сегодня.',
+    'отправится прогноз на сегодня или видео от Мики.',
   '',
   'Прогноз считается на ваши сутки — по тому городу, где вы живёте сейчас.',
 ].join('\n')
@@ -128,8 +128,12 @@ bot.callbackQuery('rated', (ctx) => ctx.answerCallbackQuery())
 // «🎥 Кружок от Мики» — see src/note.ts.
 bot.callbackQuery(/^note:([A-Za-z0-9_-]{1,32})$/, (ctx) => detached(sendNote(ctx, ctx.match![1]!)))
 
+// The button under an inline placeholder — see sendInlineNote in src/note.ts.
+bot.callbackQuery(/^inote:(\d{1,20})$/, (ctx) => detached(sendInlineNote(ctx, Number(ctx.match![1]))))
+
 // Inline mode: `@bot` from any chat. Facts only, deliberately short — see
-// src/inline.ts for why the prose can never come along for the ride.
+// src/inline.ts for why the prose can never come along for the ride. Mika's
+// video does, because it is recorded only after a tap on the placeholder.
 bot.on('inline_query', handleInlineQuery)
 
 /**

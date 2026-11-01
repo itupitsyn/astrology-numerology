@@ -98,6 +98,7 @@ generation slot, so a bare "hello" would quietly cost a model run.
 | `POLL_TIMEOUT_MS` | no | Default 180000 |
 | `API_TIMEOUT_MS` | no | Default 30000 |
 | `TELEGRAM_PROXY_URL` | no | Proxy for api.telegram.org where Telegram is blocked |
+| `NOTE_CHAT_ID` | no | Service chat for Mika's inline video; the bot must be a member. Unset: inline does not offer it |
 
 ### Proxying Telegram
 
