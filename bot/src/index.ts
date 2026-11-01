@@ -16,6 +16,7 @@ import { promptForProfile, sendDaily } from './daily'
 import { forgetInlineCache, handleInlineQuery } from './inline'
 import { ratedKeyboard, settingsKeyboard, todayKeyboard } from './keyboards'
 import { sendInlineNote, sendNote, sendNoteCommand } from './note'
+import { sendSky } from './sky'
 
 // Fail before anything else touches the network. This is the entry point, so
 // throwing here is the intended behaviour — the config module itself stays
@@ -37,6 +38,7 @@ const HELP = [
   '',
   '/today — прогноз на сегодня',
   '/mika — Мика расскажет прогноз кружочком',
+  '/sky — Мика расскажет общий прогноз на день, работает и в группах',
   '/settings — изменить дату, время и место рождения',
   '/help — эта справка',
   '',
@@ -47,12 +49,12 @@ const HELP = [
 ].join('\n')
 
 /**
- * Runs a note delivery without holding up the bot. Recording takes a minute or
- * more, and grammY handles updates one at a time: awaited, it would leave every
- * other user unanswered until the note is done.
+ * Runs slow work without holding up the bot. A video note or a forecast's text
+ * takes a minute or more, and grammY handles updates one at a time: awaited, it
+ * would leave every other user unanswered until it is done.
  */
 function detached(work: Promise<void>): void {
-  work.catch((err) => console.error('[note] failed', err))
+  work.catch((err) => console.error('[bot] background work failed', err))
 }
 
 bot.command('start', async (ctx) => {
@@ -83,6 +85,8 @@ bot.command('help', (ctx) => ctx.reply(HELP))
 bot.command('today', sendDaily)
 
 bot.command('mika', (ctx) => detached(sendNoteCommand(ctx)))
+
+bot.command('sky', (ctx) => detached(sendSky(ctx)))
 
 bot.command('settings', async (ctx) => {
   const status = await fetchProfileStatus(ctx.from!.id)
@@ -180,6 +184,7 @@ async function main() {
   await bot.api.setMyCommands([
     { command: 'today', description: 'Прогноз на сегодня' },
     { command: 'mika', description: 'Прогноз кружочком от Мики' },
+    { command: 'sky', description: 'Общий прогноз от Мики' },
     { command: 'settings', description: 'Мои данные' },
     { command: 'help', description: 'Справка' },
   ])

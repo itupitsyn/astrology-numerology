@@ -61,7 +61,7 @@ export class NotesDisabledError extends Error {
   }
 }
 
-function notesApi(event: H3Event) {
+export function notesApi(event: H3Event) {
   const { notes } = useRuntimeConfig(event)
   if (!notes?.apiUrl) throw new NotesDisabledError()
   const headers: Record<string, string> = {}
@@ -159,7 +159,7 @@ export async function produceNote(event: H3Event, row: DailyReading, name?: stri
 
 type ApiResult = { status: 'pending' | 'in_progress' | 'done' | 'error'; data?: string }
 
-async function fetchResult(event: H3Event, job: string): Promise<ApiResult | null> {
+export async function fetchResult(event: H3Event, job: string): Promise<ApiResult | null> {
   try {
     return await $fetch<ApiResult>('/api/result', { ...notesApi(event), query: { id: job }, timeout: 60_000 })
   } catch (err) {

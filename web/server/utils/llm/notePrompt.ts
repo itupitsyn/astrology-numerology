@@ -23,8 +23,8 @@ export const NOTE_GESTURES = [
   'greet', 'explain', 'think', 'nod', 'surprised', 'shrug', 'happy', 'tilt', 'wink', 'wave',
 ] as const
 
-/** ~60 s of speech is about 900 characters; past this the note will not fit. */
-export const MAX_NOTE_CHARS = 1100
+/** Speech runs about 18 characters a second, and past 60 s Telegram no longer treats it as a note. */
+export const MAX_NOTE_CHARS = 1000
 
 const MONTHS = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',

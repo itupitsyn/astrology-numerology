@@ -121,3 +121,8 @@ export interface NoteResponse {
   fileId: string | null
   error: string | null
 }
+
+/** The general forecast's note: the same states, one row for every chat. */
+export interface SkyResponse extends NoteResponse {
+  id: string
+}

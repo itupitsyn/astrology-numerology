@@ -36,6 +36,13 @@
       "when": 1793483757991,
       "tag": "0004_daily_note",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793566453122,
+      "tag": "0005_daily_sky",
+      "breakpoints": true
     }
   ]
 }

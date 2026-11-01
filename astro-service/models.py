@@ -423,6 +423,34 @@ class DailyForecast(BaseModel):
     highlights: list[Highlight] = Field(..., description="The ranked shortlist to actually show.")
 
 
+class SkyRequest(BaseModel):
+    """Input for the general forecast: a day and a clock to read it by, no person."""
+
+    timezone: str = Field(..., description="IANA zone; drives the day boundary and local event times.")
+    date: Optional[str] = Field(
+        None,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Local calendar date (YYYY-MM-DD). Defaults to today in `timezone`.",
+    )
+    reference_hour: int = Field(12, ge=0, le=23, description="Hour the snapshot positions are taken at.")
+    max_highlights: int = Field(5, ge=1, le=20, description="How many ranked findings to return.")
+
+
+class SkyForecast(BaseModel):
+    """The day for everybody: `DailyForecast` without anything that needs a chart."""
+
+    date: str
+    timezone: str
+    reference_local: str
+    reference_utc: str
+    moon: MoonToday
+    positions: list[TransitPosition]
+    retrogrades: list[str]
+    sky_aspects: list[DailyAspect]
+    events: list[DailyEvent]
+    highlights: list[Highlight]
+
+
 # --------------------------------------------------------------------------- #
 # Common
 # --------------------------------------------------------------------------- #

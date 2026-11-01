@@ -8,7 +8,7 @@
  * that scored highest writes something specific.
  */
 
-import type { DailyForecast, Highlight } from '../astro/daily'
+import type { DailyForecast, Highlight, SkyForecast } from '../astro/daily'
 import type { NumerologyResult } from '../numerology/types'
 import type { ChatMessage } from './client'
 
@@ -18,7 +18,7 @@ import type { ChatMessage } from './client'
  */
 export const DAILY_PROMPT_VERSION = 'daily-v5-areas'
 
-const PLANET_RU: Record<string, string> = {
+export const PLANET_RU: Record<string, string> = {
   Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
   Mars: 'Марс', Jupiter: 'Юпитер', Saturn: 'Сатурн', Uranus: 'Уран',
   Neptune: 'Нептун', Pluto: 'Плутон',
@@ -33,7 +33,7 @@ const SIGN_RU: Record<string, string> = {
 /** Strip the date half of an ISO local timestamp: "2026-08-25T14:04" -> "14:04". */
 const at = (iso?: string | null) => (iso ? iso.slice(11) : null)
 
-function moonBlock(forecast: DailyForecast): string {
+export function moonBlock(forecast: Pick<SkyForecast, 'moon'>): string {
   const moon = forecast.moon
   const house = moon.natal_house == null ? '' : `, ${moon.natal_house} натальный дом`
   const lines = [
@@ -55,7 +55,7 @@ function moonBlock(forecast: DailyForecast): string {
   return lines.join('\n')
 }
 
-function highlightLine(item: Highlight): string {
+export function highlightLine(item: Highlight): string {
   const time = at(item.time_local)
   const when = time ? ` [${time}]` : ' [весь день]'
   // The everyday reading leads, with the chart wording kept behind it so the
@@ -72,7 +72,7 @@ function highlightLine(item: Highlight): string {
  * the day forwards instead of by importance. Undated items apply all day and
  * come last.
  */
-function byTime(items: Highlight[]): Highlight[] {
+export function byTime(items: Highlight[]): Highlight[] {
   return [...items].sort((a, b) => {
     const left = a.time_local ?? ''
     const right = b.time_local ?? ''
@@ -83,7 +83,7 @@ function byTime(items: Highlight[]): Highlight[] {
   })
 }
 
-function eventsBlock(forecast: DailyForecast): string | null {
+export function eventsBlock(forecast: Pick<SkyForecast, 'events'>): string | null {
   if (forecast.events.length === 0) return null
   const lines = forecast.events.map((event) => {
     const time = at(event.time_local)

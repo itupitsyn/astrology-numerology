@@ -28,6 +28,8 @@ from models import (
     AspectHitInfo,
     BirthData,
     DailyForecast,
+    SkyForecast,
+    SkyRequest,
     DailyRequest,
     DignityInfo,
     GeocodeRequest,
@@ -42,7 +44,7 @@ from models import (
     ReceptionInfo,
     Significator,
 )
-from transits import compute_daily
+from transits import compute_daily, compute_sky
 
 logging.basicConfig(level=get_settings().log_level)
 logger = logging.getLogger("astro-service")
@@ -246,6 +248,23 @@ async def daily(payload: DailyRequest) -> DailyForecast:
         raise HTTPException(status_code=400, detail=f"Daily computation failed: {exc}") from exc
 
     return DailyForecast(**vars(result))
+
+
+@app.post("/sky", response_model=SkyForecast)
+async def sky(payload: SkyRequest) -> SkyForecast:
+    """Today's sky for everybody: the same computation as /daily, with no chart."""
+    try:
+        result = compute_sky(
+            timezone=payload.timezone,
+            date=payload.date,
+            reference_hour=payload.reference_hour,
+            max_highlights=payload.max_highlights,
+        )
+    except Exception as exc:  # noqa: BLE001 - surface calc errors as 400 to the caller
+        logger.exception("Sky computation failed")
+        raise HTTPException(status_code=400, detail=f"Sky computation failed: {exc}") from exc
+
+    return SkyForecast(**vars(result))
 
 
 if __name__ == "__main__":

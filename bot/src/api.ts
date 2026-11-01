@@ -6,7 +6,7 @@
  */
 
 import { config } from './config'
-import type { DailyResponse, NoteResponse } from './types'
+import type { DailyResponse, NoteResponse, SkyResponse } from './types'
 
 /**
  * The user has not filled in their birth data yet. Carries the link the bot
@@ -143,6 +143,31 @@ export async function fetchNoteVideo(readingId: string): Promise<Uint8Array> {
   })
   if (!response.ok) throw new ApiError(response.status, `note video: HTTP ${response.status}`)
   return new Uint8Array(await response.arrayBuffer())
+}
+
+/** /sky: start today's general note, or learn where it stands. */
+export function requestSky(): Promise<SkyResponse> {
+  return request<SkyResponse>('/api/bot/sky', { method: 'POST' })
+}
+
+export function pollSky(id: string): Promise<SkyResponse> {
+  return request<SkyResponse>(`/api/bot/sky/${encodeURIComponent(id)}`)
+}
+
+export async function fetchSkyVideo(id: string): Promise<Uint8Array> {
+  const response = await fetch(`${config.apiBaseUrl}/api/bot/sky/${encodeURIComponent(id)}/video`, {
+    headers: { 'X-API-Key': config.apiKey },
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!response.ok) throw new ApiError(response.status, `sky video: HTTP ${response.status}`)
+  return new Uint8Array(await response.arrayBuffer())
+}
+
+export function skySent(id: string, fileId: string): Promise<{ ok: boolean }> {
+  return request(`/api/bot/sky/${encodeURIComponent(id)}/sent`, {
+    method: 'POST',
+    body: JSON.stringify({ fileId }),
+  })
 }
 
 /** Uploaded: Telegram's file_id resends it from now on. */

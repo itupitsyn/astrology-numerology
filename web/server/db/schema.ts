@@ -21,7 +21,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 // Relative path (not the ~~ alias) so drizzle-kit can resolve it too.
-import type { DailyForecast } from '../utils/astro/daily'
+import type { DailyForecast, SkyForecast } from '../utils/astro/daily'
 import type { HoraryChart, NatalChart, NumerologyResult } from '../../shared/types'
 
 export const readings = pgTable('readings', {
@@ -257,6 +257,34 @@ export const dailyFeedback = pgTable('daily_feedback', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
+/**
+ * The general forecast (/sky): Mika's video note, one per day and timezone. Every
+ * chat that asks shares one render, and gets the video by `fileId`.
+ */
+export const skyReadings = pgTable(
+  'sky_readings',
+  {
+    id: text('id').primaryKey(),
+    localDate: text('local_date').notNull(),
+    timezone: text('timezone').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // A 'pending' row older than the stale timeout is assumed dead and reclaimed.
+    claimedAt: timestamp('claimed_at', { withTimezone: true }).defaultNow().notNull(),
+    // 'pending' — script or video in the works; 'ready' — sent, `fileId` resends it;
+    // 'failed' — the next request reclaims and retries
+    status: text('status').notNull(),
+    forecast: jsonb('forecast').$type<SkyForecast>().notNull(),
+    // What Mika says, with gesture tags in brackets.
+    script: text('script'),
+    // Job id on the generation API; the mp4 lives there until sent.
+    job: text('job'),
+    fileId: text('file_id'),
+    error: text('error'),
+    promptVersion: text('prompt_version'),
+  },
+  (table) => [uniqueIndex('sky_readings_date_timezone').on(table.localDate, table.timezone)],
+)
+
 export const profilesRelations = relations(profiles, ({ many }) => ({
   daily: many(dailyReadings),
 }))
@@ -279,3 +307,4 @@ export const dailyFeedbackRelations = relations(dailyFeedback, ({ one }) => ({
 export type DailyReading = typeof dailyReadings.$inferSelect
 export type NewDailyReading = typeof dailyReadings.$inferInsert
 export type DailyFeedbackRow = typeof dailyFeedback.$inferSelect
+export type SkyReading = typeof skyReadings.$inferSelect

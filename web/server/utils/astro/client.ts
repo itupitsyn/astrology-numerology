@@ -8,7 +8,7 @@
 
 import type { H3Event } from 'h3'
 import { FetchError } from 'ofetch'
-import type { DailyForecast, DailyRequest } from './daily'
+import type { DailyForecast, DailyRequest, SkyForecast, SkyRequest } from './daily'
 import type {
   BirthData,
   GeocodeRequest,
@@ -65,4 +65,9 @@ export function fetchHoraryChart(event: H3Event, body: HoraryQuestion): Promise<
  */
 export function fetchDailyForecast(event: H3Event, body: DailyRequest): Promise<DailyForecast> {
   return callAstro<DailyForecast>(event, '/daily', body)
+}
+
+/** Today's sky with no chart: as cheap as `fetchDailyForecast`. */
+export function fetchSkyForecast(event: H3Event, body: SkyRequest): Promise<SkyForecast> {
+  return callAstro<SkyForecast>(event, '/sky', body)
 }

@@ -632,7 +632,7 @@ def _void_of_course_periods(
 
 
 def compute_daily(
-    birth: BirthData,
+    birth: Optional[BirthData],
     *,
     date: Optional[str] = None,
     latitude: Optional[float] = None,
@@ -651,6 +651,8 @@ def compute_daily(
 
     Set `houses_known=False` when the birth time is not known: houses and the
     angles are then omitted rather than computed from a placeholder time.
+
+    With no `birth` at all only the sky is left: see `compute_sky`.
     """
     lat = birth.latitude if latitude is None else latitude
     lon = birth.longitude if longitude is None else longitude
@@ -670,7 +672,8 @@ def compute_daily(
         target + timedelta(hours=reference_hour, minutes=reference_minute), tz
     )
 
-    natal = build_natal_frame(birth, houses_known=houses_known)
+    natal = build_natal_frame(birth, houses_known=houses_known) if birth else None
+    house_of = natal.house_of if natal else lambda _lon: None
 
     # The scan reaches past both ends so periods that straddle midnight (and the
     # ingress that closes a void-of-course) are still bounded correctly.
@@ -684,7 +687,7 @@ def compute_daily(
     natal_aspects: list[dict] = []
     for t_name, t_body in transiting_now.items():
         wide = t_name in _WIDE_SCAN_BODIES
-        for n_name, n_body in natal.points.items():
+        for n_name, n_body in natal.points.items() if natal else ():
             fixed_series = [n_body.lon] * len(sky.times)
             fixed_fn: Callable[[float], float] = lambda _jd, value=n_body.lon: value
 
@@ -919,7 +922,7 @@ def compute_daily(
         **_moon_phase(moon_ref.lon, transiting_now["Sun"].lon),
         "sign_at_day_start": dig.NUM_TO_SIGN[dig.sign_num_of(moon_start.lon)],
         "sign_at_day_end": dig.NUM_TO_SIGN[dig.sign_num_of(moon_end.lon)],
-        "natal_house": natal.house_of(moon_ref.lon),
+        "natal_house": house_of(moon_ref.lon),
         "void_of_course": voids,
         "speed": round(moon_ref.speed, 4),
     }
@@ -931,7 +934,7 @@ def compute_daily(
             **_sign_info(body.lon),
             "retrograde": body.retrograde,
             "speed": round(body.speed, 5),
-            "natal_house": natal.house_of(body.lon),
+            "natal_house": house_of(body.lon),
         }
         for name, body in transiting_now.items()
     ]
@@ -945,7 +948,7 @@ def compute_daily(
     areas = life_areas.score_areas(
         natal_aspects,
         {name: natal.house_of(body.lon) for name, body in transiting_now.items()},
-    )
+    ) if natal else []
     sky_aspects.sort(key=lambda r: r["score"], reverse=True)
     highlights = _rank_highlights(findings, max_highlights)
 
@@ -965,6 +968,30 @@ def compute_daily(
         sky_aspects=sky_aspects,
         events=events,
         highlights=highlights,
+    )
+
+
+def compute_sky(
+    *,
+    timezone: str,
+    date: Optional[str] = None,
+    reference_hour: int = 12,
+    max_highlights: int = 5,
+) -> DailyComputation:
+    """The day for everybody: the Moon, events and aspects between the planets.
+
+    Nothing here depends on a person or on where they stand, except the clock the
+    times are read by, so the coordinates are placeholders nothing looks at.
+    """
+    return compute_daily(
+        None,
+        date=date,
+        latitude=0.0,
+        longitude=0.0,
+        timezone=timezone,
+        reference_hour=reference_hour,
+        max_highlights=max_highlights,
+        houses_known=False,
     )
 
 

@@ -46,7 +46,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const busy = new Set<string>()
 
 /** Keeps "записывает кружок" on screen while something slow happens. */
-function recording(ctx: Context) {
+export function recording(ctx: Context) {
   let acted = 0
   return async () => {
     if (Date.now() - acted > ACTION_MS) {
@@ -116,14 +116,18 @@ async function todayReadingId(telegramId: number, tick: () => Promise<void>): Pr
 }
 
 /** Polls until the note stops being 'pending' or the deadline passes. */
-async function waitForNote(readingId: string, first: NoteResponse, tick: () => Promise<void>): Promise<NoteResponse> {
+export async function waitForNote(
+  poll: () => Promise<NoteResponse>,
+  first: NoteResponse,
+  tick: () => Promise<void>,
+): Promise<NoteResponse> {
   let note = first
   const deadline = Date.now() + TIMEOUT_MS
   while (note.status === 'pending' && Date.now() < deadline) {
     await tick()
     await sleep(POLL_MS)
     try {
-      note = await pollNote(readingId)
+      note = await poll()
     } catch (err) {
       console.warn('[note] poll error', err)  // a blip; the deadline bounds us
     }
@@ -163,7 +167,7 @@ async function deliver(ctx: Context, readingId: string, say: (text?: string) => 
     }
     await say(STARTED)
 
-    note = await waitForNote(readingId, note, recording(ctx))
+    note = await waitForNote(() => pollNote(readingId), note, recording(ctx))
 
     if (note.status === 'rendered') {
       await ctx.replyWithChatAction('upload_video_note').catch(() => {})
@@ -230,7 +234,7 @@ async function noteBytes(ctx: Context, chatId: string, telegramId: number): Prom
   const readingId = await todayReadingId(telegramId, async () => {})
   if (!readingId) throw new Error('the reading is not ready')
 
-  const note = await waitForNote(readingId, await requestNote(readingId), async () => {})
+  const note = await waitForNote(() => pollNote(readingId), await requestNote(readingId), async () => {})
   if (note.status === 'ready' && note.fileId) return downloadSentNote(ctx, note.fileId)
   if (note.status !== 'rendered') throw new Error(`note is ${note.status}: ${note.error ?? 'timed out'}`)
 

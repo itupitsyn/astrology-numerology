@@ -33,6 +33,14 @@ export interface DailyRequest {
   houses_known?: boolean
 }
 
+/** The general forecast: a day and a clock to read it by, no person. */
+export interface SkyRequest {
+  timezone: string
+  date?: string
+  reference_hour?: number
+  max_highlights?: number
+}
+
 /** 'today' = Moon..Mars; 'background' = Jupiter and beyond. */
 export type TransitLayer = 'today' | 'background'
 
@@ -157,3 +165,9 @@ export interface DailyForecast {
   events: DailyEvent[]
   highlights: Highlight[]
 }
+
+/** The day for everybody: `DailyForecast` without anything that needs a chart. */
+export type SkyForecast = Pick<
+  DailyForecast,
+  'date' | 'timezone' | 'reference_local' | 'reference_utc' | 'moon' | 'positions' | 'retrogrades' | 'sky_aspects' | 'events' | 'highlights'
+>

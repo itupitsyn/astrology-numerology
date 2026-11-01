@@ -434,5 +434,26 @@ def _run_all() -> int:
     return 1 if failed else 0
 
 
+# --------------------------------------------------------------------------- #
+# The sky alone, with no natal chart
+# --------------------------------------------------------------------------- #
+def test_sky_has_nothing_personal():
+    sky = T.compute_sky(date=DATE, timezone=TZ)
+    assert sky.natal_aspects == [] and sky.areas == []
+    assert sky.moon["natal_house"] is None
+    assert all(p["natal_house"] is None for p in sky.positions)
+    assert sky.highlights
+    assert all(h["kind"] != "natal_aspect" for h in sky.highlights)
+
+
+def test_sky_matches_the_sky_inside_a_personal_day():
+    sky = T.compute_sky(date=DATE, timezone=TZ)
+    day = result()
+    assert sky.moon["sign"] == day.moon["sign"]
+    assert sky.moon["void_of_course"] == day.moon["void_of_course"]
+    assert sky.events == day.events
+    assert sky.sky_aspects == day.sky_aspects
+
+
 if __name__ == "__main__":
     raise SystemExit(_run_all())
