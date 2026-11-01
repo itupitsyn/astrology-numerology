@@ -108,3 +108,16 @@ export interface DailyResponse {
   promptVersion: string | null
   error: string | null
 }
+
+/**
+ * A video note («кружок»): Mika reads the day's reading out loud.
+ *  - 'pending'  — still being written or rendered; poll again
+ *  - 'rendered' — ready to fetch from …/note/video and upload
+ *  - 'ready'    — sent before; resend by `fileId`
+ *  - 'failed'   — the next tap retries
+ */
+export interface NoteResponse {
+  status: 'pending' | 'rendered' | 'ready' | 'failed'
+  fileId: string | null
+  error: string | null
+}

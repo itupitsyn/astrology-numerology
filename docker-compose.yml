@@ -94,6 +94,10 @@ services:
       NUXT_BOT_API_KEY: ${NUXT_BOT_API_KEY:-}
       NUXT_TELEGRAM_BOT_TOKEN: ${NUXT_TELEGRAM_BOT_TOKEN:-}
       NUXT_APP_URL: ${NUXT_APP_URL:-http://localhost:3000}
+      # Video notes («🎥 Кружок от Мики») — rendered by the generation API.
+      # Empty URL leaves them off; the bot answers that they are unavailable.
+      NUXT_NOTES_API_URL: ${NUXT_NOTES_API_URL:-}
+      NUXT_NOTES_API_TOKEN: ${NUXT_NOTES_API_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

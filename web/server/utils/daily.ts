@@ -172,6 +172,13 @@ export async function claimDailySlot(
     model: null,
     promptVersion: null,
     usage: null,
+    // The video note retells the text above, so it goes with it.
+    noteStatus: null,
+    noteClaimedAt: null,
+    noteScript: null,
+    noteJob: null,
+    noteFileId: null,
+    noteError: null,
   }
 
   // First attempt: nobody has a row for this day yet. ON CONFLICT DO NOTHING

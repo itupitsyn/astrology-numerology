@@ -6,7 +6,7 @@
  */
 
 import { config } from './config'
-import type { DailyResponse } from './types'
+import type { DailyResponse, NoteResponse } from './types'
 
 /**
  * The user has not filled in their birth data yet. Carries the link the bot
@@ -122,5 +122,33 @@ export function sendFeedback(readingId: string, rating: 1 | -1): Promise<{ ok: b
   return request(`/api/bot/daily/${encodeURIComponent(readingId)}/feedback`, {
     method: 'POST',
     body: JSON.stringify({ rating }),
+  })
+}
+
+/** «🎥 Кружок от Мики»: start the note, or learn where it stands. */
+export function requestNote(readingId: string): Promise<NoteResponse> {
+  return request<NoteResponse>(`/api/bot/daily/${encodeURIComponent(readingId)}/note`, { method: 'POST' })
+}
+
+/** Poll while the note renders — one small request on the API side. */
+export function pollNote(readingId: string): Promise<NoteResponse> {
+  return request<NoteResponse>(`/api/bot/daily/${encodeURIComponent(readingId)}/note`)
+}
+
+/** The rendered mp4, once `pollNote` says 'rendered'. */
+export async function fetchNoteVideo(readingId: string): Promise<Uint8Array> {
+  const response = await fetch(`${config.apiBaseUrl}/api/bot/daily/${encodeURIComponent(readingId)}/note/video`, {
+    headers: { 'X-API-Key': config.apiKey },
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!response.ok) throw new ApiError(response.status, `note video: HTTP ${response.status}`)
+  return new Uint8Array(await response.arrayBuffer())
+}
+
+/** Uploaded: Telegram's file_id resends it from now on. */
+export function noteSent(readingId: string, fileId: string): Promise<{ ok: boolean }> {
+  return request(`/api/bot/daily/${encodeURIComponent(readingId)}/note/sent`, {
+    method: 'POST',
+    body: JSON.stringify({ fileId }),
   })
 }

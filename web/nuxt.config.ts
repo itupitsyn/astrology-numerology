@@ -53,5 +53,14 @@ export default defineNuxtConfig({
     // Public origin of this app, used to build the setup link the bot sends a
     // user who has no profile yet. Set NUXT_APP_URL.
     appUrl: 'http://localhost:3000',
+
+    // Video notes — Mika reads the day out loud. Rendered by the generation API
+    // (ai-api-stuff, POST /api/video-note) on the GPU box. Values from env only:
+    // NUXT_NOTES_API_URL and NUXT_NOTES_API_TOKEN. Empty URL — the bot's
+    // «🎥 Кружок» answers 503 and nothing else changes.
+    notes: {
+      apiUrl: '',
+      apiToken: '',
+    },
   },
 })

@@ -15,6 +15,7 @@ import { assertConfig, config } from './config'
 import { promptForProfile, sendDaily } from './daily'
 import { forgetInlineCache, handleInlineQuery } from './inline'
 import { ratedKeyboard, settingsKeyboard, todayKeyboard } from './keyboards'
+import { sendNote } from './note'
 
 // Fail before anything else touches the network. This is the entry point, so
 // throwing here is the intended behaviour — the config module itself stays
@@ -102,7 +103,7 @@ bot.callbackQuery(/^fb:([A-Za-z0-9_-]{1,32}):(-?1)$/, async (ctx) => {
   try {
     await sendFeedback(readingId, rating)
     await ctx.answerCallbackQuery({ text: rating === 1 ? 'Спасибо!' : 'Спасибо, учтём.' })
-    await ctx.editMessageReplyMarkup({ reply_markup: ratedKeyboard(rating) })
+    await ctx.editMessageReplyMarkup({ reply_markup: ratedKeyboard(rating, readingId) })
   } catch (err) {
     console.error('[feedback] failed', err)
     await ctx.answerCallbackQuery({ text: 'Не получилось записать оценку.' })
@@ -111,6 +112,9 @@ bot.callbackQuery(/^fb:([A-Za-z0-9_-]{1,32}):(-?1)$/, async (ctx) => {
 
 // A tap on the already-rated button should do nothing, not look broken.
 bot.callbackQuery('rated', (ctx) => ctx.answerCallbackQuery())
+
+// «🎥 Кружок от Мики» — see src/note.ts.
+bot.callbackQuery(/^note:([A-Za-z0-9_-]{1,32})$/, (ctx) => sendNote(ctx, ctx.match![1]!))
 
 // Inline mode: `@bot` from any chat. Facts only, deliberately short — see
 // src/inline.ts for why the prose can never come along for the ride.

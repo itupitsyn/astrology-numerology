@@ -23,13 +23,20 @@ export function todayKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text('🔮 Прогноз на сегодня', 'today')
 }
 
+export const NOTE_BUTTON = '🎥 Кружок от Мики'
+
 export function feedbackKeyboard(readingId: string): InlineKeyboard {
   return new InlineKeyboard()
     .text('👍', `fb:${readingId}:1`)
     .text('👎', `fb:${readingId}:-1`)
+    .row()
+    .text(NOTE_BUTTON, `note:${readingId}`)
 }
 
-/** Replaces the buttons once a rating is in, so it reads as recorded. */
-export function ratedKeyboard(rating: 1 | -1): InlineKeyboard {
-  return new InlineKeyboard().text(rating === 1 ? '👍 Спасибо!' : '👎 Учтём', 'rated')
+/** Replaces the buttons once a rating is in, so it reads as recorded. The note stays. */
+export function ratedKeyboard(rating: 1 | -1, readingId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text(rating === 1 ? '👍 Спасибо!' : '👎 Учтём', 'rated')
+    .row()
+    .text(NOTE_BUTTON, `note:${readingId}`)
 }

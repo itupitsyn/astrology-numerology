@@ -228,6 +228,21 @@ export const dailyReadings = pgTable(
     model: text('model'),
     promptVersion: text('prompt_version'),
     usage: jsonb('usage').$type<Record<string, number>>(),
+
+    // --- the video note: Mika reads the day out loud (see utils/dailyNote.ts) ---
+    // null      — nobody asked for one
+    // 'pending' — script written or being written, the video is rendering on the GPU box
+    // 'ready'   — sent once; `noteFileId` resends it without rendering again
+    // 'failed'  — the next request reclaims and retries
+    noteStatus: text('note_status'),
+    noteClaimedAt: timestamp('note_claimed_at', { withTimezone: true }),
+    // What Mika says, with gesture tags in brackets — kept to show what was read.
+    noteScript: text('note_script'),
+    // Job id on the generation API (ai-api-stuff); the mp4 lives there until sent.
+    noteJob: text('note_job'),
+    // Telegram file_id of the sent video note: Telegram keeps the file, we keep the key.
+    noteFileId: text('note_file_id'),
+    noteError: text('note_error'),
   },
   (table) => [uniqueIndex('daily_readings_profile_date').on(table.profileId, table.localDate)],
 )
